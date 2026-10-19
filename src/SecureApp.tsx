@@ -4,7 +4,7 @@ import { createClient, type Session } from '@supabase/supabase-js';
 import './styles.css';
 import { MerchantPage } from './Merchant';
 import { ServicesPage, QuickLoan, GovernmentStudentLoan } from './Services';
-import { WalletSummary, LinkedAccounts, AddMoneyPage } from './Wallet';
+import { WalletSummary, LinkedAccounts, AddMoneyPage, migrateLegacyDemoTopups } from './Wallet';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -228,6 +228,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  }
 
  useEffect(()=>{let active=true;void supabase?.from('pg_profiles').select('user_id,full_name,playgo_account').eq('user_id',session.user.id).maybeSingle().then(({data,error})=>{if(!active)return;if(error)setError(error.message);setProfile(data as Profile|null);});return()=>{active=false;};},[session.user.id]);
+ useEffect(()=>{if(!profile?.playgo_account)return;try{migrateLegacyDemoTopups(session.user.id,profile.playgo_account);}catch{ /* Browser storage may be unavailable. */ }},[profile?.playgo_account,session.user.id]);
  const account=profile?.playgo_account||'';
  const institution=String(session.user.user_metadata?.institution_requested||'Institution pending verification');
  const admission=String(session.user.user_metadata?.admission_number_requested||'Pending verification');
@@ -273,6 +274,7 @@ function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'qu
  if(!active)return;
  if(lookupError){setError('Unable to load PlayGo account: '+lookupError.message);return;}
  if(!data?.playgo_account){setError('PlayGo account number is not available. Please contact support.');return;}
+ try{migrateLegacyDemoTopups(session.user.id,String(data.playgo_account));}catch{ /* Demo migration may be unavailable when browser storage is blocked. */ }
  setAccount(String(data.playgo_account));
  });return()=>{active=false;};},[session.user.id]);
  return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account}/>:<><Link to="/dashboard" className="pg-back">← Back to Home</Link><QuickLoan account={account}/></>}</Frame>;

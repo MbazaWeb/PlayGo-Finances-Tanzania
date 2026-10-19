@@ -27,7 +27,7 @@ function Welcome() {
   return <main className="pg-center pg-welcome"><img className="pg-logo" src={logo} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES</p><h1>Finance for student life.</h1><p>A simpler way to manage your student finances.</p><Link className="pg-button" to="/login">Get Started →</Link><small>Powered by Global Student System</small></main>;
 }
 function AuthForm({ register }: { register: boolean }) {
-  const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false); const [registrationPercent, setRegistrationPercent] = useState(0); const [registrationCheck, setRegistrationCheck] = useState(''); const [otpStep, setOtpStep] = useState(false); const [demoCode, setDemoCode] = useState(''); const [enteredCode, setEnteredCode] = useState(''); const [draft, setDraft] = useState<Record<string,string> | null>(null); const navigate = useNavigate();
+  const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false); const [registrationPercent, setRegistrationPercent] = useState(0); const [registrationCheck, setRegistrationCheck] = useState(''); const [checking, setChecking] = useState(false); const [registrationFailure, setRegistrationFailure] = useState(''); const [otpStep, setOtpStep] = useState(false); const [demoCode, setDemoCode] = useState(''); const [enteredCode, setEnteredCode] = useState(''); const [draft, setDraft] = useState<Record<string,string> | null>(null); const navigate = useNavigate();
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!supabase) return;
     const d = otpStep && draft ? new FormData() : new FormData(e.currentTarget);
@@ -45,29 +45,32 @@ function AuthForm({ register }: { register: boolean }) {
     }
     if (register && !otpStep) { const code = String(Math.floor(100000 + Math.random() * 900000)); setDemoCode(code); setEnteredCode(''); setDraft(Object.fromEntries(d.entries()) as Record<string,string>); setOtpStep(true); setMessage(''); return; }
     if (register && (enteredCode !== demoCode || !draft)) { setMessage('Incorrect demonstration code.'); return; }
-    setBusy(true); setMessage(''); setRegistrationPercent(10); setRegistrationCheck('Checking selected university in PlayGo directory…');
+    setBusy(true); setChecking(register); setRegistrationFailure(''); setMessage(''); setRegistrationPercent(10); setRegistrationCheck('Checking selected university in PlayGo directory…');
     try {
       if (register) {
         const institutionCheck = await supabase.from('pg_institutions').select('id,name').eq('name',institution).maybeSingle();
         if (institutionCheck.error) throw new Error('University directory check failed: ' + institutionCheck.error.message);
         if (!institutionCheck.data) throw new Error('Selected university does not exist in the PlayGo directory. Registration stopped.');
         setRegistrationPercent(35); setRegistrationCheck('University found. Checking student registration information…');
+        await new Promise(resolve => setTimeout(resolve, 650));
         if (!admissionNumber || admissionNumber.length < 3) throw new Error('Enter a valid admission number.');
         setRegistrationPercent(55); setRegistrationCheck('Student number recorded as unverified. Creating login…');
+        await new Promise(resolve => setTimeout(resolve, 650));
         const { data, error } = await supabase.auth.signUp({
           email, password,
           options: { data: { full_name: fullName, institution_requested: institution, admission_number_requested: admissionNumber, phone_requested: phone } }
         });
         if (error) throw error;
-        if (data.session) { setRegistrationPercent(85); setRegistrationCheck('Login created. Verifying profile and account number…'); navigate('/registration-success', { replace: true }); }
+        if (data.session) { setRegistrationPercent(85); setRegistrationCheck('Login created. Verifying profile and account number…'); await new Promise(resolve => setTimeout(resolve, 650)); navigate('/registration-success', { replace: true }); }
         else setMessage('Account created. Log in to continue. If confirmation is required by Supabase, follow its instructions.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         navigate('/dashboard', { replace: true });
       }
-    } catch (err) { setMessage(err instanceof Error ? err.message : 'Authentication failed.'); } finally { setBusy(false); }
+    } catch (err) { const reason = err instanceof Error ? err.message : 'Authentication failed.'; setMessage(reason); setRegistrationFailure(reason); } finally { setBusy(false); }
   }
+  if (register && checking) return <Frame><p className="pg-eyebrow">REGISTRATION VERIFICATION · STEP 3 OF 3</p><h1>{registrationFailure ? 'Registration check failed' : 'Checking your registration…'}</h1><div role="progressbar" aria-label="Registration progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={registrationPercent} style={{height:16,borderRadius:12,background:'#eee',overflow:'hidden',margin:'18px 0'}}><div style={{height:'100%',width:registrationPercent+'%',background:'#d32f2f',transition:'width .4s ease'}}/></div><h2>{registrationPercent}%</h2><p aria-live="polite">{registrationCheck}</p><div className="pg-details"><p><strong>{registrationPercent>=10?'✓':'○'} OTP demonstration</strong><span>Test only</span></p><p><strong>{registrationPercent>=35?'✓':'○'} University directory</strong><span>{registrationPercent>=35?'Found':'Checking'}</span></p><p><strong>{registrationPercent>=55?'✓':'○'} Admission number format</strong><span>{registrationPercent>=55?'Recorded, not university verified':'Pending'}</span></p><p><strong>{registrationPercent>=85?'✓':'○'} Account creation</strong><span>{registrationPercent>=85?'Created':'Pending'}</span></p></div>{registrationFailure && <><p role="alert" className="pg-error">{registrationFailure}</p><button className="pg-button pg-outline" type="button" onClick={()=>{setChecking(false);setRegistrationFailure('');}}>Back to OTP</button></>}<p className="pg-note">No official university enrollment or SMS ownership verification is available. Real payments remain disabled.</p></Frame>;
   if (register && otpStep) return <Frame><h1>OTP demonstration</h1><p>Step 2 of 3 — Confirm the simulated code before account creation.</p><p className="pg-note"><strong>Testing only.</strong> No SMS is sent. This does not verify ownership of your mobile number and must not be used as financial identity verification.</p><div className="pg-details"><p><strong>Demo code (shown on screen)</strong><span style={{fontSize:24,letterSpacing:3}}>{demoCode}</span></p></div><form className="pg-form" onSubmit={submit}><label htmlFor="demo-otp">Enter the 6-digit demo code</label><input id="demo-otp" type="text" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={enteredCode} onChange={e=>setEnteredCode(e.target.value.replace(/[^0-9]/g,'').slice(0,6))} required/><button className="pg-button" disabled={busy}>{busy ? 'Creating account…' : 'Confirm demo code & create account'}</button>{registrationPercent > 0 && <div aria-live="polite"><p><strong>{registrationPercent}%</strong> — {registrationCheck}</p><div role="progressbar" aria-valuenow={registrationPercent} aria-valuemin={0} aria-valuemax={100} style={{height:12,background:'#eee',borderRadius:8,overflow:'hidden'}}><div style={{width:registrationPercent+'%',height:'100%',background:'#d32f2f',transition:'width .3s'}} /></div></div>}{message && <p role="alert">{message}</p>}</form><button className="pg-button pg-outline" type="button" disabled={busy} onClick={()=>{setOtpStep(false);setDraft(null);setMessage('');}}>Back to registration</button></Frame>;
   return <Frame><h1>{register ? 'Create student account' : 'Student Login'}</h1><p>{register ? 'Step 1 of 3 — Enter student details. The next step is an OTP simulation; no SMS will be sent.' : 'Use your email address and password. Demo PINs are not accepted.'}</p>
     <form className="pg-form" onSubmit={submit}>
@@ -178,5 +181,5 @@ export default function SecureApp() {
   if (!supabase) return <Frame><h1>Configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your local environment. Do not use a secret or service-role key.</p></Frame>;
   if (loading) return <Frame><p>Checking secure session…</p></Frame>;
   // Keep the registration result screen mounted after Supabase signs the new user in.
-  return <Routes><Route path="/" element={session?<Navigate to="/dashboard" replace/>:<Splash/>}/><Route path="/welcome" element={session?<Navigate to="/dashboard" replace/>:<Welcome/>}/><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register/>}/><Route path="/registration-success" element={session?<RegistrationSuccess session={session}/>:<Navigate to="/login" replace/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/'} replace/>}/></Routes>;
+  return <Routes><Route path="/" element={session?<Navigate to="/dashboard" replace/>:<Splash/>}/><Route path="/welcome" element={session?<Navigate to="/dashboard" replace/>:<Welcome/>}/><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={<AuthForm register/>}/><Route path="/registration-success" element={session?<RegistrationSuccess session={session}/>:<Navigate to="/login" replace/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/'} replace/>}/></Routes>;
 }

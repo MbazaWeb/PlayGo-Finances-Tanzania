@@ -14,3 +14,19 @@
 
 .pga-institution-signout{display:block;margin-top:15px;padding:0;background:transparent;border:0;color:#fff;font:inherit;font-weight:650;cursor:pointer;text-align:left}
 .pga-institution-signout:hover{text-decoration:underline}
+
+
+/* Platform financial dashboard */
+.pga-admin-hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;padding:30px 32px;border-radius:18px;background:linear-gradient(115deg,#132442 0%,#253e67 65%,#31577b 100%);color:#fff;margin-bottom:22px;box-shadow:0 12px 28px #14274718}
+.pga-admin-kicker{font-size:11px;letter-spacing:2px;font-weight:750;color:#a9d2fa}
+.pga-admin-hero h2{font-size:27px;letter-spacing:-.6px;color:#fff;margin:9px 0}
+.pga-admin-hero p{max-width:560px;line-height:1.6;color:#dbe5f4;margin:0}
+.pga-admin-hero-actions,.pga-admin-actions{display:flex;flex-wrap:wrap;gap:10px}
+.pga-admin-metrics{margin-bottom:20px}
+.pga-admin-finance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:20px}
+.pga-admin-big-number{font-size:clamp(22px,3vw,32px);font-weight:800;letter-spacing:-.7px;margin:18px 0 20px;color:#152c4b}
+.pga-admin-breakdown{display:grid;gap:13px}
+.pga-admin-breakdown>div{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid #edf0f5;padding-top:12px;font-size:13px}
+.pga-admin-breakdown span{color:#68768b}
+.pga-admin-breakdown b{color:#1c304e;text-align:right}
+@media(max-width:900px){.pga-admin-finance-grid{grid-template-columns:1fr}.pga-admin-hero{padding:23px}.pga-admin-hero h2{font-size:23px}}

@@ -81,28 +81,32 @@ function AuthForm({ register }: { register: boolean }) {
 function RegistrationSuccess({ session }: { session: Session }) {
   const [account, setAccount] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading'|'ready'|'error'>('loading');
+  const [stage, setStage] = useState(0);
   useEffect(() => {
     let mounted = true;
+    const stepOne = window.setTimeout(() => setStage(1), 850);
+    const stepTwo = window.setTimeout(() => setStage(2), 1750);
     async function check() {
       if (!supabase) return;
       for (let attempt = 0; attempt < 5; attempt++) {
         const { data, error } = await supabase.from('pg_profiles').select('playgo_account').eq('user_id', session.user.id).maybeSingle();
         if (!mounted) return;
         if (error) { setStatus('error'); return; }
-        if (data?.playgo_account) { setAccount(data.playgo_account); setStatus('ready'); return; }
+        if (data?.playgo_account) { setAccount(data.playgo_account); await new Promise(resolve => setTimeout(resolve, 2600)); if (mounted) setStatus('ready'); return; }
         await new Promise(resolve => setTimeout(resolve, 700));
       }
       if (mounted) setStatus('error');
     }
     void check();
-    return () => { mounted = false; };
+    return () => { mounted = false; window.clearTimeout(stepOne); window.clearTimeout(stepTwo); };
   }, [session.user.id]);
   return <Frame><div style={{textAlign:'center',padding:'18px 0'}} aria-live="polite">
-    <div className={status === 'loading' ? 'pg-loader' : ''} style={{margin:'0 auto 18px',fontSize:48}}>{status === 'ready' ? '✓' : status === 'error' ? '!' : ''}</div>
+    <p className="pg-eyebrow">REGISTRATION STATUS · STEP 3 OF 3</p><div className={status === 'loading' ? 'pg-loader' : ''} style={{margin:'0 auto 18px',fontSize:48}}>{status === 'ready' ? '✓' : status === 'error' ? '!' : ''}</div>
     <h1>{status === 'ready' ? 'Registration successful!' : status === 'loading' ? 'Creating your PlayGo account…' : 'Account setup needs attention'}</h1>
     <p>{status === 'ready' ? 'Your student account is ready.' : status === 'loading' ? 'Securing your profile and assigning a unique account number.' : 'Your login was created, but the account number could not be retrieved. Open your dashboard or contact support.'}</p>
-    {account && <div className="pg-details"><p><strong>PlayGo Account Number</strong><span style={{fontSize:24,fontWeight:700,letterSpacing:2}}>{account}</span></p></div>}
-    <Link className="pg-button" to="/dashboard">{status === 'ready' ? 'Continue to Dashboard →' : 'Open Dashboard →'}</Link>
+    {status === 'loading' && <div className="pg-details"><p><strong>{stage >= 0 ? '✓' : '○'} OTP demo completed</strong><span>Demo only</span></p><p><strong>{stage >= 1 ? '✓' : '○'} Checking student profile</strong><span>{stage >= 1 ? 'Checked' : 'Waiting'}</span></p><p><strong>{stage >= 2 ? '✓' : '○'} Assigning PlayGo account</strong><span>{stage >= 2 ? 'Processing' : 'Waiting'}</span></p></div>}
+    {status === 'ready' && account && <div className="pg-details"><p><strong>PlayGo Account Number</strong><span style={{fontSize:24,fontWeight:700,letterSpacing:2}}>{account}</span></p></div>}
+    {status !== 'loading' && <Link className="pg-button" to="/dashboard">{status === 'ready' ? 'Continue to Dashboard →' : 'Open Dashboard →'}</Link>}
   </div></Frame>;
 }
 function Dashboard({ session }: { session: Session }) {
@@ -137,5 +141,6 @@ export default function SecureApp() {
   useEffect(()=>{if (!supabase) return; void supabase.auth.getSession().then(({data})=>{setSession(data.session);setLoading(false);}); const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{setSession(next);setLoading(false);});return ()=>subscription.unsubscribe();},[]);
   if (!supabase) return <Frame><h1>Configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your local environment. Do not use a secret or service-role key.</p></Frame>;
   if (loading) return <Frame><p>Checking secure session…</p></Frame>;
+  // Keep the registration result screen mounted after Supabase signs the new user in.
   return <Routes><Route path="/" element={session?<Navigate to="/dashboard" replace/>:<Splash/>}/><Route path="/welcome" element={session?<Navigate to="/dashboard" replace/>:<Welcome/>}/><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register/>}/><Route path="/registration-success" element={session?<RegistrationSuccess session={session}/>:<Navigate to="/login" replace/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/'} replace/>}/></Routes>;
 }

@@ -38,6 +38,7 @@ export default function AdminPortal({session,supabase}:{session:Session;supabase
   setAuthorized(true);await refresh();if(active)setLoading(false);
  })();return()=>{active=false;};},[supabase,session.user.id]);
  async function save(e:FormEvent){e.preventDefault();if(!authorized)return;const clean=name.trim();if(clean.length<3||clean.length>160){setNotice('Institution name must contain 3–160 characters.');return;}
+  if(details.admin_username.trim()&&password){const u=details.admin_username.trim().toLowerCase();if(!/^[a-z][a-z0-9._-]{2,39}$/.test(u)){setNotice('Invalid admin username: use 3–40 characters, start with a letter, and use letters, numbers, dots, underscores or hyphens. No spaces.');return;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email.trim())){setNotice('Enter a valid Institution admin email address.');return;}if(password.length<8){setNotice('Institution admin password must be at least 8 characters.');return;}}
   setBusy(true);setNotice('');
   const payload={name:clean,code:details.code.trim()||null,email:details.email.trim()||null,phone:details.phone.trim()||null,address:details.address.trim()||null,region:details.region.trim()||null,website:details.website.trim()||null,contact_person:details.contact_person.trim()||null};
   const response=editing?await supabase.from('pg_institutions').update(payload).eq('id',editing).select('id').single():await supabase.from('pg_institutions').insert(payload).select('id').single();

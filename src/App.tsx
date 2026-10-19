@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import './styles.css';
 import { MerchantPage } from './Merchant';
 import { ServicesPage } from './Services';
-import { WalletSummary, LinkedAccounts, FeePage, TransferPage, AddMoneyPage, History, TransactionOtp, TransactionStatus } from './Wallet';
+import { WalletSummary, LinkedAccounts, FeePage, TransferPage, AddMoneyPage, History, TransactionOtp, TransactionStatus, DemoOtpTimer, DEMO_OTP_LIFETIME_MS, generateDemoOtp } from './Wallet';
 
 const LOGO = '/branding/playgo-white.png';
 const ACCOUNTS_KEY = 'playgo.demo.accounts.v1';
@@ -89,14 +89,15 @@ function OTP() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [challenge,setChallenge]=useState<{code:string;expires:number}>(()=>{try{const existing=JSON.parse(sessionStorage.getItem('playgo.demo.registration-otp')||'null');if(existing?.code&&existing?.expires)return existing;}catch{}const fresh={code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS};sessionStorage.setItem('playgo.demo.registration-otp',JSON.stringify(fresh));return fresh;});
   // Pending data lives in sessionStorage, not localStorage.
   const raw = sessionStorage.getItem(PENDING_KEY);
   if (!raw) return <Navigate to="/register" replace />;
   const mobile = (() => { try { return (JSON.parse(raw) as Pending).mobileNumber; } catch { return ''; } })();
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (code !== '123456') { setError('Incorrect demo OTP. Use 123456.'); return; }
-    sessionStorage.setItem('playgo.demo.otp-approved.v1', 'yes');
+    if (Date.now()>=challenge.expires||code!==challenge.code) { setError('Incorrect or expired demo OTP. Request a new code.'); return; }
+    sessionStorage.setItem('playgo.demo.otp-approved.v1', 'yes');sessionStorage.removeItem('playgo.demo.registration-otp');
     navigate('/verification', { replace: true });
   }
   return <main className="pg-page"><section className="pg-panel">
@@ -105,7 +106,7 @@ function OTP() {
     <p className="pg-eyebrow">PLAYGO FINANCES · DEMO</p>
     <h1>Verify Mobile Number</h1>
     <p>Enter the six-digit demo OTP for {mobile}. No SMS is sent.</p>
-    <div className="pg-otp-hint">Demo OTP: <strong>123456</strong></div>
+    <div className="pg-otp-hint">Demo OTP: <strong>{challenge.code}</strong></div><DemoOtpTimer expires={challenge.expires}/><button type="button" className="pg-button pg-outline" onClick={()=>{const next={code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS};setChallenge(next);sessionStorage.setItem('playgo.demo.registration-otp',JSON.stringify(next));setCode('');setError('');}}>Generate new demo OTP</button>
     <form className="pg-form" onSubmit={submit}>
       <label htmlFor="otp">One-Time Password (OTP)</label>
       <input id="otp" name="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0,6))} placeholder="Enter 6-digit OTP" required />

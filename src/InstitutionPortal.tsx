@@ -4,7 +4,7 @@ import type {Session,SupabaseClient} from '@supabase/supabase-js';
 import './admin.css';
 
 type Institution={id:string;name:string;code:string|null;email:string|null;phone:string|null;address:string|null;region:string|null;website:string|null;contact_person:string|null;admin_username:string|null};
-type Section='dashboard'|'students'|'payments'|'profile';
+type Section='dashboard'|'requests'|'students'|'courses'|'fees'|'payments'|'heslb'|'profile';
 function isInstitutionAdmin(session:Session|null){return session?.user.app_metadata?.playgo_role==='institution_admin'&&typeof session.user.app_metadata?.institution_id==='string';}
 
 export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;session:Session|null}){
@@ -31,6 +31,9 @@ export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;ses
  </section></main>;
 }
 
+type StudentRequest={id:string;user_id:string;admission_number:string;status:'pending'|'approved'|'rejected'|'manual_verification';review_note:string|null;created_at:string;course_id:string|null};
+type Course={id:string;code:string;name:string;duration_years:number|null};
+type HeslbRecord={id:string;user_id:string;academic_year:string;amount_tzs:number;reference:string|null;disbursement_date:string|null;status:string};
 type EnrollmentRow={id:string;user_id:string;admission_number:string;active:boolean};
 type ProfileRow={user_id:string;full_name:string};
 type AcademicYear={id:string;label:string;structure:string;published:boolean};
@@ -39,8 +42,12 @@ type DemoTransaction={id:string;user_id:string;kind:string;amount_tzs:number;cre
 const money=(value:number)=>'TZS '+Number(value||0).toLocaleString('en-TZ');
 const navItems:{id:Section;label:string;icon:string}[]=[
  {id:'dashboard',label:'Dashboard',icon:'▦'},
+ {id:'requests',label:'Student Requests',icon:'✉'},
  {id:'students',label:'Students',icon:'♙'},
+ {id:'courses',label:'Courses',icon:'▧'},
+ {id:'fees',label:'Course Fees',icon:'▥'},
  {id:'payments',label:'Payments',icon:'▤'},
+ {id:'heslb',label:'HESLB Disbursements',icon:'◎'},
  {id:'profile',label:'Institution Profile',icon:'⚙'}
 ];
 const card:React.CSSProperties={background:'#fff',border:'1px solid #e8ecf2',borderRadius:14,padding:24,boxShadow:'0 4px 20px #15243a05'};
@@ -50,6 +57,11 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
  const navigate=useNavigate();
  const [section,setSection]=useState<Section>('dashboard');
  const [institution,setInstitution]=useState<Institution|null>(null);
+ const [requests,setRequests]=useState<StudentRequest[]>([]);
+ const [courses,setCourses]=useState<Course[]>([]);
+ const [heslb,setHeslb]=useState<HeslbRecord[]>([]);
+ const [courseCode,setCourseCode]=useState('');const [courseName,setCourseName]=useState('');const [courseYears,setCourseYears]=useState('3');const [courseBusy,setCourseBusy]=useState(false);
+ const [reviewNotes,setReviewNotes]=useState<Record<string,string>>({});
  const [enrollments,setEnrollments]=useState<EnrollmentRow[]>([]);
  const [profiles,setProfiles]=useState<ProfileRow[]>([]);
  const [years,setYears]=useState<AcademicYear[]>([]);
@@ -68,15 +80,19 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
   if(inst.error)throw new Error(inst.error.message);
   if(!inst.data)throw new Error('This account is not linked to an institution.');
   setInstitution(inst.data as Institution);
-  const [en,yr]=await Promise.all([
+  const [en,yr,req,cr,hl]=await Promise.all([
    supabase.from('pg_enrollments').select('id,user_id,admission_number,active').eq('institution_id',institutionId).order('admission_number'),
-   supabase.from('pg_academic_years').select('id,label,structure,published').eq('institution_id',institutionId)
+   supabase.from('pg_academic_years').select('id,label,structure,published').eq('institution_id',institutionId),
+   supabase.from('pg_student_requests').select('id,user_id,admission_number,status,review_note,created_at,course_id').eq('institution_id',institutionId).order('created_at',{ascending:false}),
+   supabase.from('pg_courses').select('id,code,name,duration_years').eq('institution_id',institutionId).order('name'),
+   supabase.from('pg_heslb_disbursements').select('id,user_id,academic_year,amount_tzs,reference,disbursement_date,status').eq('institution_id',institutionId)
   ]);
-  if(en.error||yr.error)throw new Error(en.error?.message||yr.error?.message||'Data unavailable');
+  if(en.error||yr.error||req.error||cr.error||hl.error)throw new Error(en.error?.message||yr.error?.message||req.error?.message||cr.error?.message||hl.error?.message||'Data unavailable');
+  setRequests((req.data||[]) as StudentRequest[]);setCourses((cr.data||[]) as Course[]);setHeslb((hl.data||[]) as HeslbRecord[]);
   const enrolled=(en.data||[]) as EnrollmentRow[];
   const academic=(yr.data||[]) as AcademicYear[];
   setEnrollments(enrolled);setYears(academic);
-  const ids=[...new Set(enrolled.map(e=>e.user_id))];
+  const ids=[...new Set([...enrolled.map(e=>e.user_id),...(req.data||[]).map(e=>e.user_id),...(hl.data||[]).map(e=>e.user_id)])];
   const yearIds=academic.map(y=>y.id);
   const [p,i,t]=await Promise.all([
    ids.length?supabase.from('pg_profiles').select('user_id,full_name').in('user_id',ids):Promise.resolve({data:[],error:null}),
@@ -98,6 +114,28 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
   if(e||!data){setNotice('Update failed: '+(e?.message||'No enrollment updated'));setBusyId('');return;}
   setEnrollments(old=>old.map(x=>x.id===enrollment.id?{...x,active:data.active}:x));
   setNotice('Student enrollment status updated.');setBusyId('');
+ }
+ async function reviewRequest(request:StudentRequest,status:StudentRequest['status']){
+  const note=(reviewNotes[request.id]||'').trim();
+  if((status==='rejected'||status==='manual_verification')&&!note){setNotice('Please provide a reason or office instructions before rejecting or requesting manual verification.');return;}
+  setBusyId(request.id);setNotice('');
+  const result=await supabase.from('pg_student_requests').update({status,review_note:note||null,reviewed_at:new Date().toISOString(),reviewed_by:session.user.id}).eq('id',request.id).eq('institution_id',institutionId).select('id').single();
+  if(result.error){setNotice('Review failed: '+result.error.message);setBusyId('');return;}
+  if(status==='approved'){
+   const existing=await supabase.from('pg_enrollments').select('id').eq('user_id',request.user_id).eq('institution_id',institutionId).maybeSingle();
+   if(existing.error){setNotice('Approved, but enrollment lookup failed: '+existing.error.message);setBusyId('');return;}
+   const save=existing.data?await supabase.from('pg_enrollments').update({active:true,admission_number:request.admission_number}).eq('id',existing.data.id):await supabase.from('pg_enrollments').insert({user_id:request.user_id,institution_id:institutionId,admission_number:request.admission_number,active:true});
+   if(save.error){setNotice('Request approved, but enrollment creation failed: '+save.error.message);setBusyId('');return;}
+  }
+  try{await refresh();setNotice('Student request updated: '+status.replace('_',' ')+'.');}catch(e){setNotice('Request saved but refresh failed: '+String(e));}
+  setBusyId('');
+ }
+ async function addCourse(event:FormEvent<HTMLFormElement>){
+  event.preventDefault();setCourseBusy(true);setNotice('');
+  const {error:e}=await supabase.from('pg_courses').insert({institution_id:institutionId,code:courseCode.trim().toUpperCase(),name:courseName.trim(),duration_years:Number(courseYears)});
+  if(e)setNotice('Unable to create course: '+e.message);
+  else{setCourseCode('');setCourseName('');try{await refresh();setNotice('Course added.');}catch(err){setNotice(String(err));}}
+  setCourseBusy(false);
  }
  const names=new Map(profiles.map(p=>[p.user_id,p.full_name]));
  const activeCount=enrollments.filter(e=>e.active).length;
@@ -129,6 +167,10 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
       <section style={card}><h3>Fee & Payment Overview</h3><p><strong>{money(totalFees)}</strong> total scheduled installment amounts (not collected revenue).</p><p style={muted}>{installments.length} installments · {transactions.length} recent demo records</p><button style={action} onClick={()=>setSection('payments')}>View Payments →</button></section>
      </div>
     </>}
+    {section==='requests'&&<><div className="pga-heading"><div><h2>Student Admission Requests</h2><p>Review student applications for {institution.name}. Verify official admission records before approval.</p></div><button className="pga-secondary" onClick={()=>void refresh()}>Refresh</button></div><div className="pga-card"><div className="pga-table-scroll"><table><thead><tr><th>Student</th><th>Admission number</th><th>Course</th><th>Status</th><th>Review / Office Instructions</th></tr></thead><tbody>{requests.map(r=><tr key={r.id}><td><b>{names.get(r.user_id)||'Student'}</b><br/><small>{new Date(r.created_at).toLocaleDateString()}</small></td><td>{r.admission_number}</td><td>{courses.find(c=>c.id===r.course_id)?.name||'Not selected'}</td><td><span className={'pga-user-status '+(r.status==='approved'?'is-active':'')}>{r.status.replace('_',' ')}</span></td><td><textarea aria-label={'Review note for '+r.admission_number} value={reviewNotes[r.id]??r.review_note??''} onChange={e=>setReviewNotes(v=>({...v,[r.id]:e.target.value}))} rows={2} placeholder="Reason or office instructions" style={{width:'100%',minWidth:210,border:'1px solid #d7dfea',borderRadius:8,padding:8}}/><div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:8}}><button className="pga-primary" disabled={busyId===r.id} onClick={()=>void reviewRequest(r,'approved')}>Approve</button><button className="pga-secondary" disabled={busyId===r.id} onClick={()=>void reviewRequest(r,'rejected')}>Reject</button><button className="pga-secondary" disabled={busyId===r.id} onClick={()=>void reviewRequest(r,'manual_verification')}>Visit Admin Office</button></div></td></tr>)}{!requests.length&&<tr><td colSpan={5}>No student requests yet.</td></tr>}</tbody></table></div></div></>}
+    {section==='courses'&&<><div className="pga-heading"><div><h2>Courses & Programmes</h2><p>Maintain courses offered by your institution.</p></div></div><div className="pga-card pga-form-card"><h3>Add Course</h3><form onSubmit={addCourse}><div className="pga-institution-fields"><label>Course Code<input required maxLength={30} value={courseCode} onChange={e=>setCourseCode(e.target.value)} placeholder="BBA"/></label><label>Course Name<input required maxLength={160} value={courseName} onChange={e=>setCourseName(e.target.value)} placeholder="Bachelor of Business Administration"/></label><label>Duration (years)<input required type="number" min={1} max={10} value={courseYears} onChange={e=>setCourseYears(e.target.value)}/></label></div><button className="pga-primary" disabled={courseBusy}>+ Add Course</button></form></div><div className="pga-card"><h3>Courses ({courses.length})</h3><table><thead><tr><th>Code</th><th>Course</th><th>Duration</th></tr></thead><tbody>{courses.map(c=><tr key={c.id}><td>{c.code}</td><td><b>{c.name}</b></td><td>{c.duration_years||'—'} years</td></tr>)}{!courses.length&&<tr><td colSpan={3}>No courses configured.</td></tr>}</tbody></table></div></>}
+    {section==='fees'&&<><div className="pga-heading"><div><h2>Course Fees</h2><p>Existing academic-year installments. Course-specific fee mapping is not configured yet.</p></div></div><div className="pga-stats"><article><span>Academic years</span><strong>{years.length}</strong></article><article><span>Fee installments</span><strong>{installments.length}</strong></article><article><span>Scheduled amount</span><strong style={{fontSize:22}}>{money(totalFees)}</strong></article></div><div className="pga-card"><table><thead><tr><th>Year</th><th>Installment</th><th>Amount</th><th>Due date</th></tr></thead><tbody>{installments.map(i=><tr key={i.id}><td>{years.find(y=>y.id===i.academic_year_id)?.label||'—'}</td><td>{i.installment_number}</td><td>{money(i.amount_tzs)}</td><td>{i.due_date}</td></tr>)}{!installments.length&&<tr><td colSpan={4}>No fee schedules yet.</td></tr>}</tbody></table></div></>}
+    {section==='heslb'&&<><div className="pga-heading"><div><h2>HESLB Loan Disbursements</h2><p>Read-only loan disbursement records. No official HESLB integration is connected.</p></div></div><div className="pga-stats"><article><span>Recorded disbursements</span><strong>{heslb.length}</strong></article><article><span>Recorded amount</span><strong style={{fontSize:22}}>{money(heslb.reduce((sum,r)=>sum+Number(r.amount_tzs),0))}</strong></article></div><div className="pga-card"><table><thead><tr><th>Student</th><th>Academic year</th><th>Amount</th><th>Reference</th><th>Status</th></tr></thead><tbody>{heslb.map(h=><tr key={h.id}><td>{names.get(h.user_id)||'Student'}</td><td>{h.academic_year}</td><td>{money(h.amount_tzs)}</td><td>{h.reference||'—'}</td><td>{h.status}</td></tr>)}{!heslb.length&&<tr><td colSpan={5}>No HESLB disbursement records. This does not indicate whether HESLB has paid a student.</td></tr>}</tbody></table></div></>}
     {section==='students'&&<section style={card}>
      <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{margin:'0 0 6px'}}>Registered Students</h2><p style={muted}>Only enrollments linked to {institution.name} appear here.</p></div><strong>{visible.length} records</strong></div>
      <div style={{display:'flex',gap:10,flexWrap:'wrap',margin:'20px 0'}}><input aria-label="Search students" placeholder="Search name or admission number" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 230px',padding:11,border:'1px solid #d7deeb',borderRadius:8}}/><select aria-label="Filter enrollment status" value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:11,border:'1px solid #d7deeb',borderRadius:8}}><option value="all">All students</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div>

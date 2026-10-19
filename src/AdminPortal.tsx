@@ -49,7 +49,7 @@ export default function AdminPortal({session,supabase}:{session:Session;supabase
    if(selected?.admin_user_id){accountNotice=' Existing institution account was preserved. Password reset requires a separate secure process.';}
    else{
     const result=await supabase.functions.invoke('pg-admin-create-institution-user',{body:{institution_id:targetId,username:details.admin_username,email:details.email,password}});
-    if(result.error||result.data?.error){setBusy(false);setEditing(targetId);setNotice('Institution saved, but admin account was not created. You can retry below. Error: '+(result.data?.error||result.error?.message||'Network request failed'));await refresh();return;}
+    if(result.error||result.data?.error){let reason=result.data?.error||result.error?.message||'Unknown error';if(result.error&&'context' in result.error&&result.error.context instanceof Response){try{const payload=await result.error.context.clone().json();reason=payload?.error||payload?.message||reason;}catch{reason+=' (HTTP '+result.error.context.status+')';}}setBusy(false);setEditing(targetId);setNotice('Institution saved, but admin account was not created. You can retry below. Error: '+reason);await refresh();return;}
     else accountNotice=' Institution administrator account created.';
    }
   }else if(details.admin_username.trim()&&!selected?.admin_user_id){accountNotice=' Institution saved. Enter a password to create the administrator login.';}

@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { createClient, type Session } from '@supabase/supabase-js';
 import './styles.css';
 import { MerchantPage } from './Merchant';
-import { ServicesPage, QuickLoan, GovernmentStudentLoan } from './Services';
+import { ServicesPage, QuickLoan, HomeLoanStatus, GovernmentStudentLoan } from './Services';
 import { WalletSummary, LinkedAccounts, AddMoneyPage, BankTransferPage, TransactionStatus, History, DemoOtpTimer, DEMO_OTP_LIFETIME_MS, generateDemoOtp, migrateLegacyDemoTopups } from './Wallet';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -235,7 +235,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const tabs:[StudentTab,string,string,string][]=[['home','Home','⌂','/dashboard'],['merchant','Merchant','▣','/merchant'],['services','Services','▦','/services'],['profile','Profile','♙','/profile']];
  return <main className="pg-page pg-student-page"><section className="pg-panel">
  <img className="pg-logo pg-small" src={logo} alt="PlayGo Tanzania Limited"/><p className="pg-eyebrow">PLAYGO FINANCES · STUDENT WALLET</p>
- {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution}/><div className="pg-feature-card" style={{marginTop:16}}><div className="pg-services-heading"><h2>Personal Boost Loan</h2><span>Demo</span></div><p>Wallet running low? Request emergency student funding.</p><Link className="pg-button" to="/quick-loan">⚡ Request Personal Boost →</Link><p className="pg-note">No lender connected. No instant cash or wallet credit is available.</p></div></>:<p>Loading your PlayGo account…</p>}</>}
+ {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution}/><HomeLoanStatus account={account}/></>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account}/>:<p>Loading account…</p>)}
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution}/>:<p>Loading account…</p>)}
  {tab==='profile'&&<><h1>My Profile</h1><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Pending</span></p></div><section style={{margin:'22px 0',border:'1px solid #e5e5e5',borderRadius:16,padding:16}}>

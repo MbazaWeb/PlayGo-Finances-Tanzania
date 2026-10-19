@@ -30,33 +30,126 @@ export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;ses
   {error&&<p className="pg-error" role="alert">{error}</p>}</form><p><Link to="/login">Student login</Link></p>
  </section></main>;
 }
+
+type EnrollmentRow={id:string;user_id:string;admission_number:string;active:boolean};
+type ProfileRow={user_id:string;full_name:string};
+type AcademicYear={id:string;label:string;structure:string;published:boolean};
+type InstallmentRow={id:string;academic_year_id:string;installment_number:number;amount_tzs:number;due_date:string};
+type DemoTransaction={id:string;user_id:string;kind:string;amount_tzs:number;created_at:string;note:string|null};
+const money=(value:number)=>'TZS '+Number(value||0).toLocaleString('en-TZ');
+const navItems:{id:Section;label:string;icon:string}[]=[
+ {id:'dashboard',label:'Dashboard',icon:'▦'},
+ {id:'students',label:'Students',icon:'♙'},
+ {id:'payments',label:'Payments',icon:'▤'},
+ {id:'profile',label:'Institution Profile',icon:'⚙'}
+];
+const shell:React.CSSProperties={display:'flex',minHeight:'100vh',background:'#f5f7fb',color:'#19253b',fontFamily:'Inter,system-ui,sans-serif'};
+const card:React.CSSProperties={background:'#fff',border:'1px solid #e4eaf2',borderRadius:14,padding:22,boxShadow:'0 2px 12px #172a4610'};
+const action:React.CSSProperties={background:'#162d4b',color:'white',border:0,borderRadius:8,padding:'10px 16px',cursor:'pointer',fontWeight:600};
+const muted:React.CSSProperties={color:'#68778e',fontSize:14};
 export default function InstitutionPortal({supabase,session}:{supabase:SupabaseClient;session:Session}){
- const navigate=useNavigate();const [section,setSection]=useState<Section>('dashboard');const [institution,setInstitution]=useState<Institution|null>(null);const [error,setError]=useState('');const [loading,setLoading]=useState(true);
+ const navigate=useNavigate();
+ const [section,setSection]=useState<Section>('dashboard');
+ const [institution,setInstitution]=useState<Institution|null>(null);
+ const [enrollments,setEnrollments]=useState<EnrollmentRow[]>([]);
+ const [profiles,setProfiles]=useState<ProfileRow[]>([]);
+ const [years,setYears]=useState<AcademicYear[]>([]);
+ const [installments,setInstallments]=useState<InstallmentRow[]>([]);
+ const [transactions,setTransactions]=useState<DemoTransaction[]>([]);
+ const [error,setError]=useState('');
+ const [notice,setNotice]=useState('');
+ const [loading,setLoading]=useState(true);
+ const [busyId,setBusyId]=useState('');
+ const [search,setSearch]=useState('');
+ const [filter,setFilter]=useState('all');
+ const [mobileMenu,setMobileMenu]=useState(false);
  const institutionId=String(session.user.app_metadata?.institution_id||'');
  const allowed=isInstitutionAdmin(session);
- useEffect(()=>{if(!allowed)return;let active=true;
-  void (async()=>{const {data,error:e}=await supabase.from('pg_institutions').select('id,name,code,email,phone,address,region,website,contact_person,admin_username').eq('id',institutionId).eq('admin_user_id',session.user.id).maybeSingle();
-   if(!active)return;
-   if(e)setError('Unable to load institution profile: '+e.message);
-   else if(!data)setError('Your administrator account is not linked to an active institution.');
-   else setInstitution(data as Institution);
-   setLoading(false);
-  })();return()=>{active=false;};
+ async function refresh(){
+  const inst=await supabase.from('pg_institutions').select('id,name,code,email,phone,address,region,website,contact_person,admin_username').eq('id',institutionId).eq('admin_user_id',session.user.id).maybeSingle();
+  if(inst.error)throw new Error(inst.error.message);
+  if(!inst.data)throw new Error('This account is not linked to an institution.');
+  setInstitution(inst.data as Institution);
+  const [en,yr]=await Promise.all([
+   supabase.from('pg_enrollments').select('id,user_id,admission_number,active').eq('institution_id',institutionId).order('admission_number'),
+   supabase.from('pg_academic_years').select('id,label,structure,published').eq('institution_id',institutionId)
+  ]);
+  if(en.error||yr.error)throw new Error(en.error?.message||yr.error?.message||'Data unavailable');
+  const enrolled=(en.data||[]) as EnrollmentRow[];
+  const academic=(yr.data||[]) as AcademicYear[];
+  setEnrollments(enrolled);setYears(academic);
+  const ids=[...new Set(enrolled.map(e=>e.user_id))];
+  const yearIds=academic.map(y=>y.id);
+  const [p,i,t]=await Promise.all([
+   ids.length?supabase.from('pg_profiles').select('user_id,full_name').in('user_id',ids):Promise.resolve({data:[],error:null}),
+   yearIds.length?supabase.from('pg_installments').select('id,academic_year_id,installment_number,amount_tzs,due_date').in('academic_year_id',yearIds).order('due_date'):Promise.resolve({data:[],error:null}),
+   ids.length?supabase.from('pg_demo_transactions').select('id,user_id,kind,amount_tzs,created_at,note').in('user_id',ids).order('created_at',{ascending:false}).limit(100):Promise.resolve({data:[],error:null})
+  ]);
+  if(p.error||i.error||t.error)throw new Error(p.error?.message||i.error?.message||t.error?.message||'Unable to load records');
+  setProfiles((p.data||[]) as ProfileRow[]);setInstallments((i.data||[]) as InstallmentRow[]);setTransactions((t.data||[]) as DemoTransaction[]);
+ }
+ useEffect(()=>{if(!allowed)return;let mounted=true;
+  void refresh().catch(e=>{if(mounted)setError(e instanceof Error?e.message:'Unable to load institution data');}).finally(()=>{if(mounted)setLoading(false);});
+  return()=>{mounted=false;};
  },[supabase,institutionId,session.user.id,allowed]);
  if(!allowed)return <Navigate to="/institution/login" replace/>;
  async function logout(){await supabase.auth.signOut();navigate('/institution/login',{replace:true});}
- const sections:[Section,string][]=[['dashboard','Dashboard'],['students','Students'],['payments','Payments'],['profile','Institution Profile']];
- return <div className="pga-shell" style={{minHeight:'100vh'}}>
-  <aside className="pga-sidebar"><div style={{padding:'24px 20px'}}><strong>PLAYGO</strong><p style={{fontSize:12,opacity:.75}}>INSTITUTION PORTAL</p></div><nav aria-label="Institution navigation">
-  {sections.map(([id,title])=><button key={id} type="button" className={section===id?'pga-nav-active':''} onClick={()=>setSection(id)} style={{display:'block',width:'100%',textAlign:'left',padding:'14px 24px',border:0,background:section===id?'#263244':'transparent',color:'white',cursor:'pointer'}}>{title}</button>)}
-  </nav><button type="button" onClick={logout} style={{margin:24,padding:10,cursor:'pointer'}}>Sign out</button></aside>
-  <main className="pga-main" style={{padding:'36px',minWidth:0}}>
-   {loading?<p>Loading institution…</p>:error?<p role="alert" className="pg-error">{error}</p>:institution&&<>
-    <div className="pga-heading"><div><p style={{opacity:.65}}>Institution Workspace</p><h1>{institution.name}</h1><p>Signed in as {session.user.email}</p></div></div>
-    {section==='dashboard'&&<><h2>Dashboard</h2><div className="pga-card"><h3>Welcome to your institution dashboard</h3><p>Your account is linked to {institution.name}. This workspace is restricted to your institution.</p><p>Student enrollment management and payment reporting will be enabled after institution-scoped access policies and workflows are configured.</p></div></>}
-    {section==='students'&&<><h2>Students</h2><div className="pga-card"><p>Student enrollment management is being prepared. Student records will only be displayed after institution-specific authorization is enabled.</p></div></>}
-    {section==='payments'&&<><h2>Payments</h2><div className="pga-card"><p>No real payment processing is available. PlayGo transactions are demonstrations until an approved banking integration is operational.</p></div></>}
-    {section==='profile'&&<><h2>Institution Profile</h2><div className="pga-card"><dl>{([['Institution',institution.name],['Code',institution.code],['Email',institution.email],['Phone',institution.phone],['Region',institution.region],['Address',institution.address],['Website',institution.website],['Contact person',institution.contact_person],['Admin username',institution.admin_username]] as [string,string|null][]).map(([key,value])=><div key={key} style={{padding:'10px 0',borderBottom:'1px solid #e5e7eb'}}><dt style={{fontWeight:700}}>{key}</dt><dd style={{margin:0}}>{value||'Not provided'}</dd></div>)}</dl></div></>}
+ async function changeStatus(enrollment:EnrollmentRow){
+  setBusyId(enrollment.id);setNotice('');
+  const {data,error:e}=await supabase.from('pg_enrollments').update({active:!enrollment.active}).eq('id',enrollment.id).eq('institution_id',institutionId).select('id,active').single();
+  if(e||!data){setNotice('Update failed: '+(e?.message||'No enrollment updated'));setBusyId('');return;}
+  setEnrollments(old=>old.map(x=>x.id===enrollment.id?{...x,active:data.active}:x));
+  setNotice('Student enrollment status updated.');setBusyId('');
+ }
+ const names=new Map(profiles.map(p=>[p.user_id,p.full_name]));
+ const activeCount=enrollments.filter(e=>e.active).length;
+ const visible=enrollments.filter(e=>{
+  const text=(names.get(e.user_id)||'')+' '+e.admission_number;
+  return text.toLowerCase().includes(search.trim().toLowerCase())&&(filter==='all'||(filter==='active'?e.active:!e.active));
+ });
+ const totalFees=installments.reduce((sum,i)=>sum+Number(i.amount_tzs||0),0);
+ const heading=navItems.find(n=>n.id===section)?.label||'Dashboard';
+ return <div style={shell}>
+  <aside style={{width:250,flexShrink:0,background:'#142a46',color:'#fff',padding:'28px 16px',display:'flex',flexDirection:'column',gap:24,minHeight:'100vh'}}>
+   <div style={{padding:'4px 12px'}}><strong style={{fontSize:24,letterSpacing:1}}>PLAYGO</strong><div style={{fontSize:11,letterSpacing:2,opacity:.7,marginTop:6}}>INSTITUTION PORTAL</div></div>
+   <div style={{padding:'14px 12px',background:'#ffffff12',borderRadius:10}}><strong style={{fontSize:13}}>{institution?.name||'Institution'}</strong><div style={{fontSize:12,opacity:.7,marginTop:5}}>Administrator Workspace</div></div>
+   <nav aria-label="Institution navigation" style={{display:'flex',flexDirection:'column',gap:7}}>
+    {navItems.map(item=><button key={item.id} type="button" onClick={()=>{setSection(item.id);setMobileMenu(false);setNotice('');}} style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'13px 14px',border:0,borderRadius:9,textAlign:'left',cursor:'pointer',fontSize:14,fontWeight:section===item.id?700:500,background:section===item.id?'#ffffff24':'transparent',color:'#fff'}}><span aria-hidden="true" style={{fontSize:19}}>{item.icon}</span>{item.label}</button>)}
+   </nav>
+   <div style={{marginTop:'auto',padding:'0 12px'}}><button type="button" onClick={logout} style={{...action,width:'100%',background:'#ffffff1b',border:'1px solid #ffffff30'}}>Sign out</button></div>
+  </aside>
+  <main style={{flex:1,minWidth:0,padding:'28px clamp(16px,3vw,44px) 60px'}}>
+   <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:28,flexWrap:'wrap'}}>
+    <div><div style={{...muted,marginBottom:5}}>Institution Workspace / {heading}</div><h1 style={{fontSize:27,margin:0}}>{heading}</h1></div>
+    <div style={{...card,padding:'10px 16px',fontSize:13}}><strong>{institution?.name||'Loading…'}</strong><div style={muted}>{session.user.email}</div></div>
+   </header>
+   {loading?<div style={card}>Loading institution data…</div>:error?<div role="alert" style={{...card,color:'#b42318'}}>{error}<p><button style={action} onClick={()=>{setError('');setLoading(true);void refresh().catch(e=>setError(String(e))).finally(()=>setLoading(false));}}>Retry</button></p></div>:institution&&<>
+    {notice&&<p role="status" style={{...card,borderColor:'#bbd7f2'}}>{notice}</p>}
+    {section==='dashboard'&&<>
+     <h2 style={{fontSize:21,margin:'0 0 6px'}}>Welcome, {institution.name}</h2><p style={{...muted,marginBottom:24}}>Overview of your institution's students and published fee information.</p>
+     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:16,marginBottom:22}}>
+      {([['Total Enrollments',enrollments.length],['Active Students',activeCount],['Inactive Students',enrollments.length-activeCount],['Academic Years',years.length]] as [string,number][]).map(([label,value])=><div key={label} style={card}><div style={muted}>{label}</div><strong style={{fontSize:34,display:'block',marginTop:14}}>{value}</strong></div>)}
+     </div>
+     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:18}}>
+      <section style={card}><h3>Student Management</h3><p style={muted}>Review enrollment details and activate or deactivate institution enrollments.</p><button style={action} onClick={()=>setSection('students')}>Manage Students →</button></section>
+      <section style={card}><h3>Fee & Payment Overview</h3><p><strong>{money(totalFees)}</strong> total scheduled installment amounts (not collected revenue).</p><p style={muted}>{installments.length} installments · {transactions.length} recent demo records</p><button style={action} onClick={()=>setSection('payments')}>View Payments →</button></section>
+     </div>
+    </>}
+    {section==='students'&&<section style={card}>
+     <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{margin:'0 0 6px'}}>Registered Students</h2><p style={muted}>Only enrollments linked to {institution.name} appear here.</p></div><strong>{visible.length} records</strong></div>
+     <div style={{display:'flex',gap:10,flexWrap:'wrap',margin:'20px 0'}}><input aria-label="Search students" placeholder="Search name or admission number" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 230px',padding:11,border:'1px solid #d7deeb',borderRadius:8}}/><select aria-label="Filter enrollment status" value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:11,border:'1px solid #d7deeb',borderRadius:8}}><option value="all">All students</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+     <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:590}}><thead><tr style={{textAlign:'left',background:'#f5f7fb'}}>{['Student','Admission Number','Enrollment Status','Action'].map(h=><th key={h} style={{padding:14}}>{h}</th>)}</tr></thead><tbody>{visible.map(e=><tr key={e.id} style={{borderTop:'1px solid #e9edf3'}}><td style={{padding:14,fontWeight:600}}>{names.get(e.user_id)||'Name unavailable'}</td><td style={{padding:14}}>{e.admission_number}</td><td style={{padding:14,color:e.active?'#087647':'#9a6700'}}>{e.active?'Active':'Inactive'}</td><td style={{padding:14}}><button type="button" disabled={busyId===e.id} onClick={()=>void changeStatus(e)} style={{...action,padding:'8px 12px',background:e.active?'#59687d':'#087647'}}>{busyId===e.id?'Saving…':e.active?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table>{!visible.length&&<p style={muted}>No matching student enrollments.</p>}</div>
+    </section>}
+    {section==='payments'&&<div style={{display:'grid',gap:20}}>
+     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:14}}><div style={card}><div style={muted}>Scheduled Fees</div><strong style={{fontSize:23}}>{money(totalFees)}</strong></div><div style={card}><div style={muted}>Fee Installments</div><strong style={{fontSize:28}}>{installments.length}</strong></div><div style={card}><div style={muted}>Recent Demo Transactions</div><strong style={{fontSize:28}}>{transactions.length}</strong></div></div>
+     <section style={card}><h2>Academic Years & Fee Schedule</h2><p style={muted}>Published schedules are visible to enrolled students. Figures below represent scheduled amounts, not confirmed payments.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:570}}><thead><tr style={{textAlign:'left'}}>{['Academic Year','Installment','Amount','Due Date','Year Status'].map(h=><th key={h} style={{padding:12,borderBottom:'1px solid #ddd'}}>{h}</th>)}</tr></thead><tbody>{installments.map(i=>{const y=years.find(x=>x.id===i.academic_year_id);return <tr key={i.id}><td style={{padding:12}}>{y?.label||'Unknown year'}</td><td style={{padding:12}}>{i.installment_number}</td><td style={{padding:12}}>{money(i.amount_tzs)}</td><td style={{padding:12}}>{i.due_date}</td><td style={{padding:12}}>{y?.published?'Published':'Draft'}</td></tr>;})}</tbody></table>{!installments.length&&<p style={muted}>No fee installments configured yet.</p>}</div></section>
+     <section style={card}><h2>Demo Transaction History</h2><p style={{...muted}}>Demonstration transactions by users with an enrollment at this institution. These are not verified tuition payments. Showing the latest 100 records.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:650}}><thead><tr style={{textAlign:'left'}}>{['Date','Student','Type','Amount','Note'].map(h=><th key={h} style={{padding:12,borderBottom:'1px solid #ddd'}}>{h}</th>)}</tr></thead><tbody>{transactions.map(t=><tr key={t.id}><td style={{padding:12}}>{new Date(t.created_at).toLocaleDateString('en-TZ')}</td><td style={{padding:12}}>{names.get(t.user_id)||'Student'}</td><td style={{padding:12}}>{t.kind}</td><td style={{padding:12}}>{money(t.amount_tzs)}</td><td style={{padding:12}}>{t.note||'—'}</td></tr>)}</tbody></table>{!transactions.length&&<p style={muted}>No demo transactions found.</p>}</div></section>
+     <p style={muted}>Real payments and bank settlement reports are disabled until approved integrations are available.</p>
+    </div>}
+    {section==='profile'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:18}}>
+     <section style={card}><h2>Institution Details</h2><dl>{([['Institution',institution.name],['Code',institution.code],['Email',institution.email],['Phone',institution.phone],['Region',institution.region],['Address',institution.address],['Website',institution.website],['Contact Person',institution.contact_person]] as [string,string|null][]).map(([key,value])=><div key={key} style={{padding:'12px 0',borderBottom:'1px solid #e8edf4'}}><dt style={muted}>{key}</dt><dd style={{margin:'5px 0 0',fontWeight:600}}>{value||'Not provided'}</dd></div>)}</dl><p style={muted}>Contact PlayGo Platform Admin to update official institution details.</p></section>
+     <section style={card}><h2>Administrator Account</h2><p><strong>Username</strong><br/>{institution.admin_username||'Not provided'}</p><p><strong>Login email</strong><br/>{session.user.email}</p><p><strong>Access role</strong><br/>Institution Administrator</p><button type="button" style={action} onClick={async()=>{if(!session.user.email)return;const {error:e}=await supabase.auth.resetPasswordForEmail(session.user.email,{redirectTo:window.location.origin+'/institution/login'});setNotice(e?'Password reset failed: '+e.message:'Password reset instructions sent if the email is eligible.');}}>Request Password Reset Email</button><p style={muted}>Password reset requires a configured Supabase email service and redirect URL.</p></section>
+    </div>}
    </>}
   </main>
  </div>;

@@ -72,6 +72,19 @@ export function QuickLoan({account}:{account:string}){
  
  const request:QuickLoanRequest={id:'QL-'+crypto.randomUUID().slice(0,8).toUpperCase(),account,amount:n,termDays:days,reason,interestRate,interestAmount,totalRepayment,createdAt:new Date().toISOString(),status:'Demo · Checking'};
  try{const all=[...getQuickLoans(),request];localStorage.setItem(QUICK_KEY,JSON.stringify(all));setRequests(all.filter(x=>x.account===account));setAmount('');setMessage('Demo loan check started. The simulated decision will appear after 2 minutes. After the 2-minute demo approval, simulated principal is credited once to the demo wallet.');}catch{setMessage('Could not save demo request.');}}
+ if(selectedRequest){
+ const selected=requests.find(x=>x.id===selectedRequest);
+ const elapsed=selected?Math.max(0,now-new Date(selected.createdAt).getTime()):0;
+ const remaining=Math.max(0,Math.ceil((120000-elapsed)/1000));
+ const progress=Math.min(100,Math.floor(elapsed/120000*100));
+ const stage=progress<25?'Checking request details':progress<50?'Validating student profile (demo)':progress<75?'Reviewing requested amount and term':progress<100?'Preparing simulated decision':'Check complete';
+ return <section className="pg-feature-card" aria-label="Selected loan status"><Link className="pg-back" to="/dashboard">← Back to Home</Link><h2>Loan Status</h2>
+ {!selected?<><p className="pg-error">This loan request was not found for your account.</p><Link to="/quick-loan">View loan requests →</Link></>:<>
+ <div className="pg-details"><p><strong>Reference</strong><span>{selected.id}</span></p><p><strong>Amount requested</strong><span>TZS {selected.amount.toLocaleString('en-TZ')}</span></p><p><strong>Application date</strong><span>{new Date(selected.createdAt).toLocaleString('en-TZ')}</span></p><p><strong>Repayment term</strong><span>{selected.termDays} days</span></p><p><strong>Interest</strong><span>{selected.interestRate??0}%</span></p><p><strong>Total repayment</strong><span>TZS {(selected.totalRepayment??selected.amount).toLocaleString('en-TZ')}</span></p><p><strong>Status</strong><span>{selected.status}</span></p></div>
+ {selected.status==='Demo · Checking'&&<div aria-live="polite"><h3>Loan Check</h3><p>{stage}</p><p><strong>Time remaining: {String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong> · {progress}%</p><div className="pg-progress" role="progressbar" aria-label="Loan check progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{width:progress+'%'}}/></div></div>}
+ <p className="pg-note">Demo simulation only; no real lender approval or funds.</p><Link to="/quick-loan">All Loan Requests →</Link></>}
+ </section>;
+ }
  return <section className="pg-feature-card" id="quick-loan">
  <div className="pg-services-heading"><h2>Personal Boost Loan</h2><span>Demo only</span></div>
  <p>Need money for urgent student expenses? Explore a short-term personal boost request, separate from government student funding.</p>

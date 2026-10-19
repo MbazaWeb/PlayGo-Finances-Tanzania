@@ -78,11 +78,19 @@ export function QuickLoan({account}:{account:string}){
  const remaining=Math.max(0,Math.ceil((120000-elapsed)/1000));
  const progress=Math.min(100,Math.floor(elapsed/120000*100));
  const stage=progress<25?'Checking request details':progress<50?'Validating student profile (demo)':progress<75?'Reviewing requested amount and term':progress<100?'Preparing simulated decision':'Check complete';
+ const dueAt=selected?new Date(selected.createdAt).getTime()+120000+selected.termDays*86400000:0;
+ const baseRepayment=selected?(selected.totalRepayment??selected.amount):0;
+ const overdueDays=selected&&selected.status==='Demo · Approved (simulation)'&&now>dueAt?Math.ceil((now-dueAt)/86400000):0;
+ const dailyPenalty=baseRepayment*0.005;
+ const accruedPenalty=Math.round(dailyPenalty*overdueDays*100)/100;
+ const amountDue=baseRepayment+accruedPenalty;
+ const formatTZS=(value:number)=>'TZS '+value.toLocaleString('en-TZ',{minimumFractionDigits:value%1?2:0,maximumFractionDigits:2});
+
  return <section className="pg-feature-card" aria-label="Selected loan status"><Link className="pg-back" to="/dashboard">← Back to Home</Link><h2>Loan Status</h2>
  {!selected?<><p className="pg-error">This loan request was not found for your account.</p><Link to="/quick-loan">View loan requests →</Link></>:<>
- <div className="pg-details"><p><strong>Reference</strong><span>{selected.id}</span></p><p><strong>Amount requested</strong><span>TZS {selected.amount.toLocaleString('en-TZ')}</span></p><p><strong>Application date</strong><span>{new Date(selected.createdAt).toLocaleString('en-TZ')}</span></p><p><strong>Repayment term</strong><span>{selected.termDays} days</span></p><p><strong>Interest</strong><span>{selected.interestRate??0}%</span></p><p><strong>Total repayment</strong><span>TZS {(selected.totalRepayment??selected.amount).toLocaleString('en-TZ')}</span></p><p><strong>Status</strong><span>{selected.status}</span></p></div>
+ <div className="pg-details"><p><strong>Reference</strong><span>{selected.id}</span></p><p><strong>Amount requested</strong><span>TZS {selected.amount.toLocaleString('en-TZ')}</span></p><p><strong>Application date</strong><span>{new Date(selected.createdAt).toLocaleString('en-TZ')}</span></p><p><strong>Repayment term</strong><span>{selected.termDays} days</span></p><p><strong>Interest</strong><span>{selected.interestRate??0}%</span></p><p><strong>Repayment due date</strong><span>{new Date(dueAt).toLocaleString('en-TZ')}</span></p><p><strong>Original repayment</strong><span>{formatTZS(baseRepayment)}</span></p><p><strong>Late penalty rate</strong><span>0.5% per overdue day (simple)</span></p><p><strong>Daily penalty</strong><span>{formatTZS(dailyPenalty)}</span></p><p><strong>Days overdue</strong><span>{overdueDays}</span></p><p><strong>Accrued penalty</strong><span>{formatTZS(accruedPenalty)}</span></p><p><strong>Total repayment due</strong><span><b>{formatTZS(amountDue)}</b></span></p><p><strong>Status</strong><span>{overdueDays>0?'Demo · Overdue':selected.status}</span></p></div>
  {selected.status==='Demo · Checking'&&<div aria-live="polite"><h3>Loan Check</h3><p>{stage}</p><p><strong>Time remaining: {String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong> · {progress}%</p><div className="pg-progress" role="progressbar" aria-label="Loan check progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{width:progress+'%'}}/></div></div>}
- <p className="pg-note">Demo simulation only; no real lender approval or funds.</p><Link to="/quick-loan">All Loan Requests →</Link></>}
+ <p className="pg-note">Penalty starts after the repayment due date. Calculated at 0.5% per overdue day on original repayment, without compounding. Demo only; no real lender approval, debt or funds.</p><Link to="/quick-loan">All Loan Requests →</Link></>}
  </section>;
  }
  return <section className="pg-feature-card" id="quick-loan">

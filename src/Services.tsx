@@ -40,6 +40,24 @@ export function GovernmentStudentLoan(){
 type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;interestRate?:number;interestAmount?:number;totalRepayment?:number;createdAt:string;status:'Demo only · Not approved'|'Demo · Checking'|'Demo · Approved (simulation)'};
 const QUICK_KEY='playgo.demo.quick-loan.v1';
 function getQuickLoans():QuickLoanRequest[]{try{const x:unknown=JSON.parse(localStorage.getItem(QUICK_KEY)||'[]');return Array.isArray(x)?x as QuickLoanRequest[]:[];}catch{return [];}}
+export function HomeLoanStatus({account}:{account:string}){
+ const [now,setNow]=useState(()=>Date.now());
+ const [requests,setRequests]=useState<QuickLoanRequest[]>(()=>getQuickLoans().filter(x=>x.account===account));
+ useEffect(()=>{const tick=()=>{const time=Date.now();setNow(time);const all=getQuickLoans();let changed=false;const updated=all.map(x=>{if(x.account!==account||x.status!=='Demo · Checking'||time-new Date(x.createdAt).getTime()<120000)return x;changed=true;return {...x,status:'Demo · Approved (simulation)' as const};});if(changed){try{localStorage.setItem(QUICK_KEY,JSON.stringify(updated));}catch{}}setRequests(updated.filter(x=>x.account===account));};tick();const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[account]);
+ const ordered=requests.slice().sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
+ const active=ordered.find(x=>x.status==='Demo · Checking');
+ const money=(n:number)=>'TZS '+n.toLocaleString('en-TZ');
+ const elapsed=active?Math.max(0,now-new Date(active.createdAt).getTime()):0;
+ const remaining=Math.max(0,Math.ceil((120000-elapsed)/1000));
+ const progress=Math.min(100,Math.floor(elapsed/120000*100));
+ const stage=progress<25?'Checking request details':progress<50?'Validating student profile (demo)':progress<75?'Reviewing amount and repayment term':progress<100?'Preparing simulated decision':'Completing check';
+ return <div className="pg-feature-card" style={{marginTop:16}}><div className="pg-services-heading"><h2>Personal Boost Loan</h2><span>Demo</span></div>
+ {active?<div aria-live="polite"><p><strong>Loan check in progress</strong> · {active.id}</p><p>Requested: {money(active.amount)} · {active.termDays} days</p><p>{stage}</p><p><strong>Time remaining: {String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong> · {progress}%</p><div className="pg-progress" role="progressbar" aria-label="Loan check progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{width:progress+'%'}}/></div></div>:<p>{ordered.length?'Latest loan request status: '+ordered[0].status:'Wallet running low? Request emergency student funding.'}</p>}
+ <Link className="pg-button" to="/quick-loan">{active?'View Loan Check & History →':'⚡ Request Personal Boost →'}</Link>
+ <h3>Loan Request History</h3>{ordered.length===0?<p className="pg-note">No loan requests yet.</p>:ordered.slice(0,4).map(x=><div className="pg-tx" key={x.id}><div><b>{x.id}</b><small>{new Date(x.createdAt).toLocaleString('en-TZ')} · {x.termDays} days</small><small>{x.status}</small></div><strong>{money(x.amount)}</strong></div>)}
+ {ordered.length>4&&<Link to="/quick-loan">View all loan requests →</Link>}
+ <p className="pg-note">Loan checks and approvals are simulated only. No lender decision, debt or wallet credit is created.</p></div>;
+}
 export function QuickLoan({account}:{account:string}){
  const [amount,setAmount]=useState('');const [term,setTerm]=useState('30');const [reason,setReason]=useState('Emergency student expenses');
  const [message,setMessage]=useState('');const [requests,setRequests]=useState(()=>getQuickLoans().filter(x=>x.account===account));

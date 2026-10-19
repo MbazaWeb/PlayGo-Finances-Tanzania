@@ -17,7 +17,7 @@ type Institution = { id: string; name: string };
 type Year = { id: string; institution_id: string; label: string; structure: string };
 type Installment = { id: string; academic_year_id: string; installment_number: number; amount_tzs: number; due_date: string };
 
-function Frame({ children }: { children: React.ReactNode }) { return <main className="pg-page"><section className="pg-panel"><img className="pg-logo pg-small" src={logo} alt="PlayGo"/><p className="pg-eyebrow">PLAYGO FINANCES · SECURE ACCESS</p>{children}<p className="pg-note">NMB integration pending approval. Real payments are disabled.</p></section></main>; }
+function Frame({ children }: { children: React.ReactNode }) { return <main className="pg-page"><section className="pg-panel"><div className="pg-subpage-brand"><img className="pg-logo pg-small" src={logo} alt="PlayGo"/></div>{children}<p className="pg-note">NMB integration pending approval. Real payments are disabled.</p></section></main>; }
 function Splash() {
   const navigate = useNavigate();
   useEffect(() => {

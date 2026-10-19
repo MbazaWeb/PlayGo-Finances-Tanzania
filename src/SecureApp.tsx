@@ -15,6 +15,17 @@ type Year = { id: string; institution_id: string; label: string; structure: stri
 type Installment = { id: string; academic_year_id: string; installment_number: number; amount_tzs: number; due_date: string };
 
 function Frame({ children }: { children: React.ReactNode }) { return <main className="pg-page"><section className="pg-panel"><img className="pg-logo pg-small" src={logo} alt="PlayGo"/><p className="pg-eyebrow">PLAYGO FINANCES · SECURE ACCESS</p>{children}<p className="pg-note">NMB integration pending approval. Real payments are disabled.</p></section></main>; }
+function Splash() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const timer = window.setTimeout(() => navigate('/welcome', { replace: true }), 1800);
+    return () => window.clearTimeout(timer);
+  }, [navigate]);
+  return <main className="pg-center"><img className="pg-logo" src={logo} alt="PlayGo Tanzania Limited" /><div className="pg-loader" aria-label="Loading" /></main>;
+}
+function Welcome() {
+  return <main className="pg-center pg-welcome"><img className="pg-logo" src={logo} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES</p><h1>Finance for student life.</h1><p>A simpler way to manage your student finances.</p><Link className="pg-button" to="/login">Get Started →</Link><small>Powered by Global Student System</small></main>;
+}
 function AuthForm({ register }: { register: boolean }) {
   const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false); const navigate = useNavigate();
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -67,5 +78,5 @@ export default function SecureApp() {
   useEffect(()=>{if (!supabase) return; void supabase.auth.getSession().then(({data})=>{setSession(data.session);setLoading(false);}); const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{setSession(next);setLoading(false);});return ()=>subscription.unsubscribe();},[]);
   if (!supabase) return <Frame><h1>Configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your local environment. Do not use a secret or service-role key.</p></Frame>;
   if (loading) return <Frame><p>Checking secure session…</p></Frame>;
-  return <Routes><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/login'} replace/>}/></Routes>;
+  return <Routes><Route path="/" element={session?<Navigate to="/dashboard" replace/>:<Splash/>}/><Route path="/welcome" element={session?<Navigate to="/dashboard" replace/>:<Welcome/>}/><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/'} replace/>}/></Routes>;
 }

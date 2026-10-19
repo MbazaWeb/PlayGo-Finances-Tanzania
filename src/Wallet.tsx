@@ -25,7 +25,6 @@ function Section({title,children}:{title:string;children:React.ReactNode}){retur
 export function FeePage({account}:{account:string}){const navigate=useNavigate();const [amount,setAmount]=useState('');const [error,setError]=useState('');const [edit,setEdit]=useState(false);const [total,setTotal]=useState(String(walletInfo(account).fee.total));const [due,setDue]=useState(walletInfo(account).fee.due);const {fee,balance}=walletInfo(account);const outstanding=fee.total-fee.paid;function submit(e:FormEvent){e.preventDefault();const n=amountOf(amount);if(!n||n>outstanding||n>balance){setError('Enter an amount within your outstanding fee and wallet balance.');return;}begin({id:id(),kind:'fee',amount:n},navigate);}function configure(e:FormEvent){e.preventDefault();const n=amountOf(total);if(!n||n<fee.paid){setError('Total must be positive and not below amount already paid.');return;}const s=load();s.fees[account]={total:n,paid:fee.paid,due};save(s);setEdit(false);setError('');}return <Section title="Pay Tuition Fee"><p>Institution fee tracking is a local demonstration, not official university data.</p><div className="pg-feature-card"><div className="pg-fee-grid"><p>Total Fee<b>{money(fee.total)}</b></p><p>Paid<b>{money(fee.paid)}</b></p><p>Outstanding<b>{money(outstanding)}</b></p><p>Paid<b>{Math.round(fee.paid/fee.total*100)}%</b></p></div><div className="pg-progress"><div style={{width:`${fee.paid/fee.total*100}%`}} /></div>{fee.due&&<p>Due date: {fee.due}</p>}{outstanding>0&&<p className="pg-reminder">Reminder: Fee balance is outstanding.</p>}<button className="pg-text-button" onClick={()=>setEdit(!edit)}>Configure demo fee</button>{edit&&<form className="pg-form" onSubmit={configure}><label>Total Fee (TZS)</label><input type="number" min="1" value={total} onChange={e=>setTotal(e.target.value)} required/><label>Due Date (optional)</label><input type="date" value={due} onChange={e=>setDue(e.target.value)}/><button className="pg-button">Save Demo Fee</button></form>}</div><form className="pg-form" onSubmit={submit}><p>Wallet available: <b>{money(balance)}</b></p><label>Amount to Pay (TZS)</label><input type="number" min="1" step="1" value={amount} onChange={e=>setAmount(e.target.value)} required/><button className="pg-button" disabled={!outstanding}>Review & Verify OTP →</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form><History account={account}/></Section>}
 export function TransferPage({account,findAccount}:{account:string;findAccount:(n:string)=>string|undefined}){const navigate=useNavigate();const [to,setTo]=useState('');const [amount,setAmount]=useState('');const [error,setError]=useState('');const recipient=findAccount(to);function submit(e:FormEvent){e.preventDefault();const n=amountOf(amount);if(!/^09\d{8}$/.test(to)||!recipient||to===account||!n||n>walletInfo(account).balance){setError('Check recipient account, amount, and available balance.');return;}begin({id:id(),kind:'transfer',amount:n,recipient:to},navigate);}return <Section title="Transfer"><p>Send demo wallet funds to another student account saved in this browser.</p><form className="pg-form" onSubmit={submit}><label>Recipient PlayGo Account</label><input inputMode="numeric" maxLength={10} placeholder="09XXXXXXXX" value={to} onChange={e=>setTo(e.target.value.replace(/\D/g,''))} required/>{recipient&&<p>Recipient: <b>{recipient}</b></p>}<label>Amount (TZS)</label><input type="number" min="1" step="1" value={amount} onChange={e=>setAmount(e.target.value)} required/><p>Available: {money(walletInfo(account).balance)}</p><button className="pg-button">Review & Verify OTP →</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form></Section>}
 export function AddMoneyPage({account}:{account:string}){
- const navigate=useNavigate();
  const [method,setMethod]=useState<'mobile'|'bank'|'borrow'>('mobile');
  const [provider,setProvider]=useState('M-Pesa');
  const [phone,setPhone]=useState('');
@@ -33,23 +32,32 @@ export function AddMoneyPage({account}:{account:string}){
  const [amount,setAmount]=useState('');
  const [error,setError]=useState('');
  const [message,setMessage]=useState('');
+ const [review,setReview]=useState<{amount:number;provider:string;number:string}|null>(null);
+ const [balance,setBalance]=useState(()=>walletInfo(account).balance);
  const providers=['M-Pesa','Mixx by Yas','Airtel Money','HaloPesa'];
  function submit(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();setError('');setMessage('');
+  e.preventDefault();setError('');setMessage('');setReview(null);
   const n=amountOf(amount);
   if(!n||n>5000000){setError('Enter a valid demo amount between TZS 1 and TZS 5,000,000.');return;}
   if(method==='mobile'){
    if(!/^0[67][0-9]{8}$/.test(phone.trim())){setError('Enter a Tanzanian mobile number (e.g. 07XXXXXXXX).');return;}
-   setMessage('Mobile money top-up preview only. '+provider+' has not been connected; no payment request was sent and no wallet funds were added.');
+   setReview({amount:n,provider,number:phone.trim()});
   }else{
    if(!/^[0-9]{6,24}$/.test(bankAccount.trim())){setError('Enter a bank account number of 6–24 digits.');return;}
-   setMessage('NMB bank top-up preview only. No bank debit was initiated and no wallet funds were added.');
+   setReview({amount:n,provider:'NMB Bank',number:bankAccount.trim()});
   }
  }
+ function confirmDemoTopup(){if(!review)return;setError('');try{
+  const store=load();const previous=store.balances[account]||0;
+  if(!Number.isSafeInteger(previous+review.amount))throw Error('Invalid balance');
+  const txId=id();store.balances[account]=previous+review.amount;
+  store.transactions.push({id:txId,kind:'Add Money · Demo',amount:review.amount,from:review.provider+' · '+mask(review.number),to:account,at:new Date().toISOString(),note:'SIMULATED ONLY · No external funds debited'});
+  store.processed.push(txId);save(store);setBalance(store.balances[account]);setMessage('Demo top-up completed. Wallet balance updated locally; no real money was transferred.');setReview(null);setAmount('');
+ }catch{setError('Could not save the simulated top-up.');}}
  return <Section title="Add Money">
- <p>Choose how to fund your PlayGo wallet. Payment providers and lending are not yet connected.</p>
+ <p>Choose a demo funding method. Mobile money and bank top-ups update only your simulated wallet balance.</p><div className="pg-feature-card"><strong>Available demo balance: {money(balance)}</strong><p className="pg-note">Demo funds are not real money and cannot be withdrawn.</p></div>
  <div className="pg-services-grid" style={{marginBottom:18}}>
-  <button type="button" className="pg-service-tile" onClick={()=>{setMethod('mobile');setError('');setMessage('');}} aria-pressed={method==='mobile'} style={{border:method==='mobile'?'2px solid #2463ad':undefined,textAlign:'left'}}><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Mobile Money</strong><small>Pay using your phone number</small></button>
+  <button type="button" className="pg-service-tile" onClick={()=>{setMethod('mobile');setError('');setMessage('');setReview(null);}} aria-pressed={method==='mobile'} style={{border:method==='mobile'?'2px solid #2463ad':undefined,textAlign:'left'}}><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Mobile Money</strong><small>Pay using your phone number</small></button>
   <button type="button" className="pg-service-tile" onClick={()=>{setMethod('bank');setError('');setMessage('');}} aria-pressed={method==='bank'} style={{border:method==='bank'?'2px solid #2463ad':undefined,textAlign:'left'}}><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Bank</strong><small>NMB account transfer</small></button>
   <button type="button" className="pg-service-tile" onClick={()=>{setMethod('borrow');setError('');setMessage('');}} aria-pressed={method==='borrow'} style={{border:method==='borrow'?'2px solid #2463ad':undefined,textAlign:'left'}}><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Borrow</strong><small>Personal Boost Loan</small></button>
  </div>
@@ -59,9 +67,9 @@ export function AddMoneyPage({account}:{account:string}){
  {method==='mobile'?<><label htmlFor="pg-mobile-provider">Mobile money provider</label><select id="pg-mobile-provider" value={provider} onChange={e=>setProvider(e.target.value)}>{providers.map(p=><option key={p}>{p}</option>)}</select><label htmlFor="pg-mobile-number">Mobile number</label><input id="pg-mobile-number" type="tel" inputMode="tel" autoComplete="tel" placeholder="07XXXXXXXX" value={phone} onChange={e=>setPhone(e.target.value)} required/></>:
  <><p className="pg-note">NMB is the designated demo bank. No bank integration is active.</p><label htmlFor="pg-nmb-number">NMB account number</label><input id="pg-nmb-number" inputMode="numeric" placeholder="NMB account number" value={bankAccount} onChange={e=>setBankAccount(e.target.value)} required/></>}
  <label htmlFor="pg-topup-amount">Amount (TZS)</label><input id="pg-topup-amount" type="number" min="1" max="5000000" step="1" placeholder="Enter amount" value={amount} onChange={e=>setAmount(e.target.value)} required/>
- <button className="pg-button" type="submit">Review Top-Up (Demo) →</button>
- {error&&<p className="pg-error" role="alert">{error}</p>}{message&&<p className="pg-services-message" role="status">{message}</p>}
- <p className="pg-note">This preview does not initiate a payment, send an OTP or increase your wallet balance. Never enter a mobile-money PIN or bank password.</p>
+ <button className="pg-button" type="submit">Review Demo Top-Up →</button>
+ {review&&<div className="pg-feature-card" role="status"><h3>Confirm simulated top-up</h3><p><strong>Amount:</strong> {money(review.amount)}</p><p><strong>Source:</strong> {review.provider} · {mask(review.number)}</p><p>No charge will be made to this source. Only your local demo balance will increase.</p><button className="pg-button" type="button" onClick={confirmDemoTopup}>Confirm Demo Top-Up</button><button className="pg-button pg-outline" type="button" onClick={()=>setReview(null)}>Cancel</button></div>}{error&&<p className="pg-error" role="alert">{error}</p>}{message&&<p className="pg-services-message" role="status">{message}</p>}
+ <p className="pg-note">Confirming increases your local demo wallet balance and creates a demo transaction record. No bank or mobile-money account is debited. Never enter a PIN or password.</p>
  </form>}
  </Section>;
 }

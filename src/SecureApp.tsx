@@ -79,34 +79,64 @@ function AuthForm({ register }: { register: boolean }) {
     </form><p className="pg-switch">{register ? <>Already registered? <Link to="/login">Log in</Link></> : <>New student? <Link to="/register">Sign up</Link></>}</p></Frame>;
 }
 function RegistrationSuccess({ session }: { session: Session }) {
+  const [progress, setProgress] = useState(25);
+  const [step, setStep] = useState('Checking authentication session');
   const [account, setAccount] = useState<string | null>(null);
-  const [status, setStatus] = useState<'loading'|'ready'|'error'>('loading');
-  const [stage, setStage] = useState(0);
+  const [failure, setFailure] = useState('');
+  const [running, setRunning] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    let mounted = true;
-    const stepOne = window.setTimeout(() => setStage(1), 850);
-    const stepTwo = window.setTimeout(() => setStage(2), 1750);
-    async function check() {
-      if (!supabase) return;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const { data, error } = await supabase.from('pg_profiles').select('playgo_account').eq('user_id', session.user.id).maybeSingle();
-        if (!mounted) return;
-        if (error) { setStatus('error'); return; }
-        if (data?.playgo_account) { setAccount(data.playgo_account); await new Promise(resolve => setTimeout(resolve, 2600)); if (mounted) setStatus('ready'); return; }
-        await new Promise(resolve => setTimeout(resolve, 700));
+    let active = true;
+    async function verify() {
+      if (!supabase) { setFailure('Supabase is not configured.'); setRunning(false); return; }
+      setProgress(25); setStep('Checking authentication session'); setFailure(''); setAccount(null); setRunning(true);
+      const auth = await supabase.auth.getUser();
+      if (!active) return;
+      if (auth.error || !auth.data.user || auth.data.user.id !== session.user.id) {
+        setFailure('Authentication check failed: ' + (auth.error?.message || 'Session mismatch. Please log in again.'));
+        setRunning(false); return;
       }
-      if (mounted) setStatus('error');
+      setProgress(50); setStep('Checking student profile');
+      const profile = await supabase.from('pg_profiles').select('user_id,full_name,playgo_account').eq('user_id', session.user.id).maybeSingle();
+      if (!active) return;
+      if (profile.error || !profile.data) {
+        setFailure('Student profile check failed: ' + (profile.error?.message || 'Profile not found. Contact support.'));
+        setRunning(false); return;
+      }
+      if (!profile.data.full_name || profile.data.full_name === 'Student') {
+        setFailure('Student profile is incomplete: full name is missing.');
+        setRunning(false); return;
+      }
+      setProgress(75); setStep('Verifying assigned PlayGo account number');
+      const number = profile.data.playgo_account;
+      if (!number || !/^09[0-9]{8}$/.test(number)) {
+        setFailure('Account-number verification failed: no valid 10-digit PlayGo number beginning with 09 was found.');
+        setRunning(false); return;
+      }
+      setAccount(number); setProgress(100); setStep('Registration checks completed'); setRunning(false);
     }
-    void check();
-    return () => { mounted = false; window.clearTimeout(stepOne); window.clearTimeout(stepTwo); };
-  }, [session.user.id]);
+    void verify();
+    return () => { active = false; };
+  }, [session.user.id, attempt]);
   return <Frame><div style={{textAlign:'center',padding:'18px 0'}} aria-live="polite">
-    <p className="pg-eyebrow">REGISTRATION STATUS · STEP 3 OF 3</p><div className={status === 'loading' ? 'pg-loader' : ''} style={{margin:'0 auto 18px',fontSize:48}}>{status === 'ready' ? '✓' : status === 'error' ? '!' : ''}</div>
-    <h1>{status === 'ready' ? 'Registration successful!' : status === 'loading' ? 'Creating your PlayGo account…' : 'Account setup needs attention'}</h1>
-    <p>{status === 'ready' ? 'Your student account is ready.' : status === 'loading' ? 'Securing your profile and assigning a unique account number.' : 'Your login was created, but the account number could not be retrieved. Open your dashboard or contact support.'}</p>
-    {status === 'loading' && <div className="pg-details"><p><strong>{stage >= 0 ? '✓' : '○'} OTP demo completed</strong><span>Demo only</span></p><p><strong>{stage >= 1 ? '✓' : '○'} Checking student profile</strong><span>{stage >= 1 ? 'Checked' : 'Waiting'}</span></p><p><strong>{stage >= 2 ? '✓' : '○'} Assigning PlayGo account</strong><span>{stage >= 2 ? 'Processing' : 'Waiting'}</span></p></div>}
-    {status === 'ready' && account && <div className="pg-details"><p><strong>PlayGo Account Number</strong><span style={{fontSize:24,fontWeight:700,letterSpacing:2}}>{account}</span></p></div>}
-    {status !== 'loading' && <Link className="pg-button" to="/dashboard">{status === 'ready' ? 'Continue to Dashboard →' : 'Open Dashboard →'}</Link>}
+    <p className="pg-eyebrow">REGISTRATION VERIFICATION · STEP 3 OF 3</p>
+    <h1>{failure ? 'Registration check failed' : running ? 'Checking your registration…' : 'Registration verified!'}</h1>
+    <div role="progressbar" aria-label="Registration verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{height:16,borderRadius:12,background:'#eeeeee',overflow:'hidden',margin:'20px 0 8px'}}>
+      <div style={{height:'100%',width:progress+'%',background:failure?'#d32f2f':'#d32f2f',transition:'width .35s ease'}}/>
+    </div>
+    <p style={{fontSize:22,fontWeight:700}}>{progress}%</p>
+    <p>{failure ? 'Verification stopped at the failed check.' : step}</p>
+    <div className="pg-details">
+      <p><strong>{progress >= 25 ? '✓' : '○'} OTP demonstration</strong><span>Demo only · not SMS verified</span></p>
+      <p><strong>{progress >= 50 ? '✓' : failure ? '✕' : '○'} Authentication session</strong><span>{progress >= 50 ? 'Passed' : failure ? 'Failed' : 'Checking'}</span></p>
+      <p><strong>{progress >= 75 ? '✓' : failure && progress === 50 ? '✕' : '○'} Student profile</strong><span>{progress >= 75 ? 'Passed' : failure && progress === 50 ? 'Failed' : 'Pending'}</span></p>
+      <p><strong>{progress === 100 ? '✓' : failure && progress === 75 ? '✕' : '○'} Account number</strong><span>{progress === 100 ? 'Verified' : failure && progress === 75 ? 'Failed' : 'Pending'}</span></p>
+    </div>
+    {failure && <p className="pg-error" role="alert">{failure}</p>}
+    {account && <div className="pg-details"><p><strong>Verified PlayGo Account Number</strong><span style={{fontSize:24,fontWeight:700,letterSpacing:2}}>{account}</span></p></div>}
+    {failure && <button type="button" className="pg-button pg-outline" onClick={()=>setAttempt(n=>n+1)}>Retry verification</button>}
+    {!running && !failure && <Link className="pg-button" to="/dashboard">Continue to Dashboard →</Link>}
+    <p className="pg-note">Checks reflect actual Supabase responses. Institution enrollment and phone ownership are not yet verified. Real payments are disabled.</p>
   </div></Frame>;
 }
 function Dashboard({ session }: { session: Session }) {

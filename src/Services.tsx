@@ -37,16 +37,18 @@ export function GovernmentStudentLoan(){
  <p className="pg-note">PlayGo is not connected to HESLB. Check the official HESLB student portal for verified allocation and disbursement information. This page does not offer personal borrowing.</p>
  </section>;
 }
-type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;createdAt:string;status:'Demo only · Not approved'};
+type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;interestRate?:number;interestAmount?:number;totalRepayment?:number;createdAt:string;status:'Demo only · Not approved'};
 const QUICK_KEY='playgo.demo.quick-loan.v1';
 function getQuickLoans():QuickLoanRequest[]{try{const x:unknown=JSON.parse(localStorage.getItem(QUICK_KEY)||'[]');return Array.isArray(x)?x as QuickLoanRequest[]:[];}catch{return [];}}
 export function QuickLoan({account}:{account:string}){
- const [amount,setAmount]=useState('');const [term,setTerm]=useState('30');const [reason,setReason]=useState('Emergency student expenses');
+ const [amount,setAmount]=useState('');const [term,setTerm]=useState('30');const [rate,setRate]=useState('3');const [reason,setReason]=useState('Emergency student expenses');
  const [message,setMessage]=useState('');const [requests,setRequests]=useState(()=>getQuickLoans().filter(x=>x.account===account));
+ const principal=Number(amount);const interestRate=Number(rate);const validPreview=Number.isSafeInteger(principal)&&principal>=5000&&principal<=500000;const interestAmount=validPreview?Math.round(principal*interestRate/100):0;const totalRepayment=validPreview?principal+interestAmount:0;
  function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const n=Number(amount),days=Number(term);setMessage('');
  if(!Number.isSafeInteger(n)||n<5000||n>500000){setMessage('Demo amount must be TZS 5,000–500,000.');return;}
  if(![7,14,30].includes(days)){setMessage('Choose a valid period.');return;}
- const request:QuickLoanRequest={id:'QL-'+crypto.randomUUID().slice(0,8).toUpperCase(),account,amount:n,termDays:days,reason,createdAt:new Date().toISOString(),status:'Demo only · Not approved'};
+ if(![3,4,5].includes(interestRate)){setMessage('Select a demonstration interest rate between 3% and 5%.');return;}
+ const request:QuickLoanRequest={id:'QL-'+crypto.randomUUID().slice(0,8).toUpperCase(),account,amount:n,termDays:days,reason,interestRate,interestAmount,totalRepayment,createdAt:new Date().toISOString(),status:'Demo only · Not approved'};
  try{const all=[...getQuickLoans(),request];localStorage.setItem(QUICK_KEY,JSON.stringify(all));setRequests(all.filter(x=>x.account===account));setAmount('');setMessage('Demo quick-loan request saved. No loan approved, no funds added to wallet.');}catch{setMessage('Could not save demo request.');}}
  return <section className="pg-feature-card" id="quick-loan">
  <div className="pg-services-heading"><h2>Personal Boost Loan</h2><span>Demo only</span></div>
@@ -55,11 +57,13 @@ export function QuickLoan({account}:{account:string}){
  <form className="pg-form" onSubmit={submit}>
  <label htmlFor="quick-amount">Amount requested (TZS)</label><input id="quick-amount" type="number" inputMode="numeric" min={5000} max={500000} step={1000} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="e.g. 20000" required/>
  <label htmlFor="quick-term">Preferred repayment period</label><select id="quick-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select>
+ <label htmlFor="quick-rate">Illustrative interest rate (flat, once per loan)</label><select id="quick-rate" value={rate} onChange={e=>setRate(e.target.value)}><option value="3">3%</option><option value="4">4%</option><option value="5">5%</option></select>
  <label htmlFor="quick-reason">Purpose</label><select id="quick-reason" value={reason} onChange={e=>setReason(e.target.value)}><option>Emergency student expenses</option><option>Books and materials</option><option>Meals and transport</option><option>Temporary wallet shortfall</option></select>
- <p className="pg-note">No lender is connected. Loan eligibility, interest, fees and repayment terms are not available. Submitting this form does not create a debt or credit your PlayGo balance.</p>
+ <div className="pg-details" aria-live="polite"><p><strong>Requested principal</strong><span>{validPreview?`TZS ${principal.toLocaleString("en-TZ")}`:"Enter an amount"}</span></p><p><strong>Illustrative interest ({rate}%)</strong><span>TZS {interestAmount.toLocaleString("en-TZ")}</span></p><p><strong>Illustrative total repayment</strong><span>TZS {totalRepayment.toLocaleString("en-TZ")}</span></p><p><strong>Repayment period</strong><span>{term} days</span></p></div>
+ <p className="pg-note">Illustrative flat interest charged once for the selected term, not per day or month. No lender is connected, and this is not an approved rate, credit offer or binding repayment schedule. Eligibility and any additional fees have not been determined. No debt or wallet credit is created.</p>
  <button className="pg-button" type="submit">Save Quick Loan Demo Request</button></form>
  {message&&<p className="pg-services-message" role="status">{message}</p>}
- <h3>My Quick Loan Requests</h3>{requests.length===0?<p className="pg-note">No requests yet.</p>:requests.slice().reverse().map(x=><div key={x.id} className="pg-service-request"><strong>TZS {x.amount.toLocaleString('en-TZ')}</strong><small>{x.id} · {new Date(x.createdAt).toLocaleDateString('en-TZ')}</small><p>{x.termDays} days · {x.reason}</p><span>{x.status}</span></div>)}
+ <h3>My Quick Loan Requests</h3>{requests.length===0?<p className="pg-note">No requests yet.</p>:requests.slice().reverse().map(x=><div key={x.id} className="pg-service-request"><strong>TZS {x.amount.toLocaleString('en-TZ')}</strong><small>{x.id} · {new Date(x.createdAt).toLocaleDateString('en-TZ')}</small><p>{x.termDays} days · {x.reason}</p>{x.interestRate!=null&&x.totalRepayment!=null&&<p>Demo interest: {x.interestRate}% · Illustrative repayment: TZS {x.totalRepayment.toLocaleString("en-TZ")}</p>}<span>{x.status}</span></div>)}
  <p className="pg-note">Requests are stored on this device only. Real quick loans and automatic top-ups require an approved lender, credit assessment and explicit loan terms.</p>
  </section>;
 }

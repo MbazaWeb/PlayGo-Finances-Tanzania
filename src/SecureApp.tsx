@@ -37,10 +37,10 @@ function AuthForm({ register }: { register: boolean }) {
     const fullName = String(d.get('fullName') || '').trim();
     const institution = String(d.get('institution') || '').trim();
     const admissionNumber = String(d.get('admissionNumber') || '').trim();
-    const phone = String(d.get('phone') || '').replace(/[\\s-]/g, '');
+    const phone = String(d.get('phone') || '').replace(/[\s-]/g, '');
     if (register) {
       if (fullName.length < 2 || fullName.length > 120 || !institution || !admissionNumber) { setMessage('Complete your name, institution and admission number.'); return; }
-      if (!/^(?:0[67]\\d{8}|(?:\\+?255)[67]\\d{8})$/.test(phone)) { setMessage('Enter a valid Tanzanian mobile number.'); return; }
+      if (!/^(?:0[67]\d{8}|\+?255[67]\d{8})$/.test(phone)) { setMessage('Enter a valid Tanzanian mobile number.'); return; }
       if (password !== String(d.get('confirmPassword') || '')) { setMessage('Passwords do not match.'); return; }
     }
     if (register && !otpStep) { const code = String(Math.floor(100000 + Math.random() * 900000)); setDemoCode(code); setEnteredCode(''); setDraft(Object.fromEntries(d.entries()) as Record<string,string>); setOtpStep(true); setMessage(''); return; }

@@ -24,50 +24,17 @@ function downloadStatement(account: string) {
   const a = document.createElement('a'); a.href = url; a.download = `playgo-demo-statement-${account}.csv`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
-type LoanRequest = { id:string; account:string; amount:number; purpose:string; repaymentMonths:number; createdAt:string; status:'Demo request · Not submitted to lender' };
-const LOAN_KEY='playgo.demo.student-loans.v1';
-function readLoans():LoanRequest[]{try{const data:unknown=JSON.parse(localStorage.getItem(LOAN_KEY)||'[]');return Array.isArray(data)?data as LoanRequest[]:[];}catch{return [];}}
-function StudentLoan({account}:{account:string}){
- const [amount,setAmount]=useState('');
- const [purpose,setPurpose]=useState('Tuition and academic expenses');
- const [months,setMonths]=useState('12');
- const [loans,setLoans]=useState(()=>readLoans().filter(x=>x.account===account));
- const [message,setMessage]=useState('');
- const [open,setOpen]=useState(false);
- function submit(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();setMessage('');
-  const n=Number(amount),m=Number(months);
-  if(!Number.isSafeInteger(n)||n<10000||n>5000000){setMessage('Enter an amount between TZS 10,000 and TZS 5,000,000 for this demo.');return;}
-  if(!Number.isInteger(m)||m<1||m>36){setMessage('Choose a valid repayment period.');return;}
-  const item:LoanRequest={id:'LN-'+crypto.randomUUID().slice(0,8).toUpperCase(),account,amount:n,purpose,repaymentMonths:m,createdAt:new Date().toISOString(),status:'Demo request · Not submitted to lender'};
-  try{const all=[...readLoans(),item];localStorage.setItem(LOAN_KEY,JSON.stringify(all));setLoans(all.filter(x=>x.account===account));setAmount('');setMessage('Demo loan request saved on this device. No lender received this application.');setOpen(false);}
-  catch{setMessage('Could not save the demo request on this device.');}
- }
- return <section className="pg-feature-card" id="student-loan" style={{minWidth:0}}>
-  <div className="pg-services-heading"><h2>Student Loan</h2><span>Demo · No disbursement</span></div>
-  <p>View funding allocation status and explore a student borrowing request.</p>
-  <div className="pg-details">
-   <p><strong>Government funding (HESLB)</strong><span>Not connected · Allocation unknown</span></p>
-   <p><strong>Private funding</strong><span>Not connected · Allocation unknown</span></p>
-   <p><strong>Verified funding received</strong><span>Not available</span></p>
-   <p><strong>Borrowing eligibility</strong><span>Not assessed</span></p>
-  </div>
-  <p className="pg-note">Funding must be confirmed through the official HESLB portal or the relevant private provider. PlayGo does not currently check or change your allocation.</p>
-  <button type="button" className="pg-button pg-outline" onClick={()=>setOpen(v=>!v)}>{open?'Close demo loan form':'Request Student Loan (Demo) →'}</button>
-  {open&&<form className="pg-form" onSubmit={submit}>
-   <label htmlFor="loan-amount">Amount requested (TZS)</label>
-   <input id="loan-amount" inputMode="numeric" type="number" min={10000} max={5000000} step={1000} required value={amount} onChange={e=>setAmount(e.target.value)} placeholder="e.g. 200000"/>
-   <label htmlFor="loan-purpose">Purpose</label>
-   <select id="loan-purpose" value={purpose} onChange={e=>setPurpose(e.target.value)}><option>Tuition and academic expenses</option><option>Books and learning materials</option><option>Accommodation</option><option>Living expenses</option><option>Emergency student expenses</option></select>
-   <label htmlFor="loan-period">Preferred repayment period</label>
-   <select id="loan-period" value={months} onChange={e=>setMonths(e.target.value)}><option value="3">3 months</option><option value="6">6 months</option><option value="12">12 months</option><option value="24">24 months</option><option value="36">36 months</option></select>
-   <p className="pg-note">This is not a credit offer or approval. Interest, fees, affordability, eligibility and repayment terms have not been determined.</p>
-   <button className="pg-button" type="submit">Save Demo Loan Request</button>
-  </form>}
-  {message&&<p role="status" className="pg-services-message">{message}</p>}
-  <h3>My Loan Requests</h3>
-  {loans.length===0?<p className="pg-note">No demo loan requests yet.</p>:loans.slice().reverse().map(x=><div className="pg-service-request" key={x.id}><strong>TZS {x.amount.toLocaleString('en-TZ')}</strong><small>{x.id} · {new Date(x.createdAt).toLocaleDateString('en-TZ')}</small><p>{x.purpose} · Preferred period: {x.repaymentMonths} months</p><span>{x.status}</span></div>)}
-  <p className="pg-note">Demo requests are stored in this browser only, not in Supabase. No money is lent or transferred.</p>
+export function GovernmentStudentLoan(){
+ return <section className="pg-feature-card" id="government-loan">
+ <div className="pg-services-heading"><h2>Government Student Loan</h2><span>HESLB · Status only</span></div>
+ <p>View your government student loan allocation and disbursement status when official integration becomes available.</p>
+ <div className="pg-details">
+ <p><strong>Government provider</strong><span>HESLB</span></p>
+ <p><strong>Allocation status</strong><span>Not connected · Unknown</span></p>
+ <p><strong>Allocated amount</strong><span>Not available</span></p>
+ <p><strong>Disbursement status</strong><span>Not available</span></p>
+ </div>
+ <p className="pg-note">PlayGo is not connected to HESLB. Check the official HESLB student portal for verified allocation and disbursement information. This page does not offer personal borrowing.</p>
  </section>;
 }
 type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;createdAt:string;status:'Demo only · Not approved'};
@@ -82,8 +49,8 @@ export function QuickLoan({account}:{account:string}){
  const request:QuickLoanRequest={id:'QL-'+crypto.randomUUID().slice(0,8).toUpperCase(),account,amount:n,termDays:days,reason,createdAt:new Date().toISOString(),status:'Demo only · Not approved'};
  try{const all=[...getQuickLoans(),request];localStorage.setItem(QUICK_KEY,JSON.stringify(all));setRequests(all.filter(x=>x.account===account));setAmount('');setMessage('Demo quick-loan request saved. No loan approved, no funds added to wallet.');}catch{setMessage('Could not save demo request.');}}
  return <section className="pg-feature-card" id="quick-loan">
- <div className="pg-services-heading"><h2>Quick Loan</h2><span>Demo only</span></div>
- <p>Need money for urgent student expenses? Explore a short-term loan request similar in convenience to mobile quick-loan services.</p>
+ <div className="pg-services-heading"><h2>Personal Boost Loan</h2><span>Demo only</span></div>
+ <p>Need money for urgent student expenses? Explore a short-term personal boost request, separate from government student funding.</p>
  <div className="pg-details"><p><strong>Available to borrow</strong><span>Not assessed</span></p><p><strong>Approved loan</strong><span>None</span></p><p><strong>Instant wallet top-up</strong><span>Disabled until lender integration</span></p></div>
  <form className="pg-form" onSubmit={submit}>
  <label htmlFor="quick-amount">Amount requested (TZS)</label><input id="quick-amount" type="number" inputMode="numeric" min={5000} max={500000} step={1000} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="e.g. 20000" required/>
@@ -122,11 +89,9 @@ export function ServicesPage({ account, institution }: { account: string; instit
       <Link className="pg-service-tile" to="/history"><span className="pg-service-symbol" aria-hidden="true">◷</span><strong>Transactions</strong><small>Payment history</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/add-money"><span className="pg-service-symbol" aria-hidden="true">＋</span><strong>Add Money</strong><small>Fund your wallet</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/profile"><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Linked Accounts</strong><small>NMB Bank only</small><span className="pg-service-arrow">›</span></Link>
-      <a className="pg-service-tile" href="#student-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Student Loan</strong><small>Funding status & borrowing</small><span className="pg-service-arrow">›</span></a>
-      <Link className="pg-service-tile" to="/quick-loan"><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Quick Loan</strong><small>Emergency loan demo</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/government-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Government Loan</strong><small>HESLB allocation status</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/quick-loan"><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
     </div>
-    <StudentLoan account={account}/>
-    <QuickLoan account={account}/>
     <section className="pg-feature-card pg-service-fee">
       <div className="pg-services-heading"><h2>Fee Status</h2><span>Demo</span></div>
       <p className="pg-service-institution">{institution}</p>

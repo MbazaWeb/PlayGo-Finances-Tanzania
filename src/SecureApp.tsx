@@ -50,7 +50,7 @@ function AuthForm({ register }: { register: boolean }) {
           options: { data: { full_name: fullName, institution_requested: institution, admission_number_requested: admissionNumber, phone_requested: phone } }
         });
         if (error) throw error;
-        if (data.session) navigate('/dashboard', { replace: true });
+        if (data.session) navigate('/registration-success', { replace: true });
         else setMessage('Account created. Log in to continue. If confirmation is required by Supabase, follow its instructions.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -73,6 +73,33 @@ function AuthForm({ register }: { register: boolean }) {
       <button className="pg-button" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Log in'}</button>
       {message && <p role="status">{message}</p>}
     </form><p className="pg-switch">{register ? <>Already registered? <Link to="/login">Log in</Link></> : <>New student? <Link to="/register">Sign up</Link></>}</p></Frame>;
+}
+function RegistrationSuccess({ session }: { session: Session }) {
+  const [account, setAccount] = useState<string | null>(null);
+  const [status, setStatus] = useState<'loading'|'ready'|'error'>('loading');
+  useEffect(() => {
+    let mounted = true;
+    async function check() {
+      if (!supabase) return;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data, error } = await supabase.from('pg_profiles').select('playgo_account').eq('user_id', session.user.id).maybeSingle();
+        if (!mounted) return;
+        if (error) { setStatus('error'); return; }
+        if (data?.playgo_account) { setAccount(data.playgo_account); setStatus('ready'); return; }
+        await new Promise(resolve => setTimeout(resolve, 700));
+      }
+      if (mounted) setStatus('error');
+    }
+    void check();
+    return () => { mounted = false; };
+  }, [session.user.id]);
+  return <Frame><div style={{textAlign:'center',padding:'18px 0'}} aria-live="polite">
+    <div className={status === 'loading' ? 'pg-loader' : ''} style={{margin:'0 auto 18px',fontSize:48}}>{status === 'ready' ? '✓' : status === 'error' ? '!' : ''}</div>
+    <h1>{status === 'ready' ? 'Registration successful!' : status === 'loading' ? 'Creating your PlayGo account…' : 'Account setup needs attention'}</h1>
+    <p>{status === 'ready' ? 'Your student account is ready.' : status === 'loading' ? 'Securing your profile and assigning a unique account number.' : 'Your login was created, but the account number could not be retrieved. Open your dashboard or contact support.'}</p>
+    {account && <div className="pg-details"><p><strong>PlayGo Account Number</strong><span style={{fontSize:24,fontWeight:700,letterSpacing:2}}>{account}</span></p></div>}
+    <Link className="pg-button" to="/dashboard">{status === 'ready' ? 'Continue to Dashboard →' : 'Open Dashboard →'}</Link>
+  </div></Frame>;
 }
 function Dashboard({ session }: { session: Session }) {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -106,5 +133,5 @@ export default function SecureApp() {
   useEffect(()=>{if (!supabase) return; void supabase.auth.getSession().then(({data})=>{setSession(data.session);setLoading(false);}); const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{setSession(next);setLoading(false);});return ()=>subscription.unsubscribe();},[]);
   if (!supabase) return <Frame><h1>Configuration required</h1><p>Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your local environment. Do not use a secret or service-role key.</p></Frame>;
   if (loading) return <Frame><p>Checking secure session…</p></Frame>;
-  return <Routes><Route path="/" element={session?<Navigate to="/dashboard" replace/>:<Splash/>}/><Route path="/welcome" element={session?<Navigate to="/dashboard" replace/>:<Welcome/>}/><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/'} replace/>}/></Routes>;
+  return <Routes><Route path="/" element={session?<Navigate to="/dashboard" replace/>:<Splash/>}/><Route path="/welcome" element={session?<Navigate to="/dashboard" replace/>:<Welcome/>}/><Route path="/login" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register={false}/>}/><Route path="/register" element={session?<Navigate to="/dashboard" replace/>:<AuthForm register/>}/><Route path="/registration-success" element={session?<RegistrationSuccess session={session}/>:<Navigate to="/login" replace/>}/><Route path="/dashboard" element={session?<Dashboard session={session}/>:<Navigate to="/login" replace/>}/><Route path="*" element={<Navigate to={session?'/dashboard':'/'} replace/>}/></Routes>;
 }

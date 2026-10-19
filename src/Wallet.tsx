@@ -14,6 +14,23 @@ const money=(n:number)=>'TZS '+n.toLocaleString('en-TZ');
 const mask=(s:string)=>s.length>4?'•••• '+s.slice(-4):'••••';
 const amountOf=(v:string)=>{const n=Number(v);return Number.isSafeInteger(n)&&n>0&&n<=100000000? n:0;};
 const id=()=>crypto.randomUUID();
+export function migrateLegacyDemoTopups(userId:string,playgoAccount:string){
+ if(!userId||!playgoAccount||userId===playgoAccount)return;
+ const store=load();
+ const legacy=store.transactions.filter(t=>t.to===userId&&t.kind==='Add Money · Demo'&&t.note.includes('SIMULATED ONLY'));
+ if(!legacy.length)return;
+ const migrationKey='playgo.demo.topup-migrated.'+userId;
+ if(localStorage.getItem(migrationKey)==='1')return;
+ const amount=legacy.reduce((total,t)=>total+t.amount,0);
+ if(!Number.isSafeInteger(amount)||amount<=0)return;
+ const current=store.balances[playgoAccount]||0;
+ if(!Number.isSafeInteger(current+amount))return;
+ store.balances[playgoAccount]=current+amount;
+ store.balances[userId]=Math.max(0,(store.balances[userId]||0)-amount);
+ legacy.forEach(t=>{t.to=playgoAccount;});
+ save(store);
+ localStorage.setItem(migrationKey,'1');
+}
 export function walletInfo(account:string){const s=load();const fee=s.fees[account]||{total:DEFAULT_FEE,paid:0,due:''};return {balance:s.balances[account]||0,fee,transactions:s.transactions.filter(t=>t.from===account||t.to===account).slice().reverse(),sources:s.sources[account]||[]};}
 export function WalletSummary({account,fullName,institution}:{account:string;fullName:string;institution:string}){const x=walletInfo(account);const outstanding=Math.max(0,x.fee.total-x.fee.paid);return <><div className="pg-account-card pg-unified-wallet-card"><div className="pg-unified-account"><small>PLAYGO ACCOUNT NUMBER</small><h2>{account}</h2><p>{fullName}</p><p>{institution}</p></div><div className="pg-unified-balance"><small>AVAILABLE BALANCE · DEMO</small><h2>{money(x.balance)}</h2></div></div><div className="pg-actions"><Link to="/pay-fee">🎓<span>Pay Fee</span></Link><Link to="/transfer">⇄<span>Transfer</span></Link><Link to="/add-money">＋<span>Add Money</span></Link></div><div className="pg-feature-card"><strong>Tuition Fee Overview · Demo</strong><div className="pg-fee-grid"><p>Total fee<b>{money(x.fee.total)}</b></p><p>Paid<b>{money(x.fee.paid)}</b></p><p>Outstanding<b>{money(outstanding)}</b></p><p>Paid percentage<b>{Math.round(x.fee.paid/x.fee.total*100)}%</b></p></div><div className="pg-progress"><div style={{width:`${x.fee.paid/x.fee.total*100}%`}} /></div>{outstanding>0&&<p className="pg-reminder">Reminder: You have an outstanding demo fee balance.</p>}<Link to="/pay-fee">View fee details →</Link></div><History account={account} short /></>}
 export function History({account,short=false}:{account:string;short?:boolean}){const tx=walletInfo(account).transactions;return <div className="pg-feature-card"><strong>Recent Transactions</strong>{!tx.length?<p>No demo transactions yet.</p>:(short?tx.slice(0,4):tx).map(t=><div className="pg-tx" key={t.id}><div><b>{t.kind}</b><small>{new Date(t.at).toLocaleString()} · {t.note}</small></div><strong>{t.to===account?'+':'−'}{money(t.amount)}</strong></div>)}{short&&tx.length>4&&<Link to="/history">View all →</Link>}</div>}

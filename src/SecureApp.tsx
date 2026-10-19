@@ -27,10 +27,11 @@ function Welcome() {
   return <main className="pg-center pg-welcome"><img className="pg-logo" src={logo} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES</p><h1>Finance for student life.</h1><p>A simpler way to manage your student finances.</p><Link className="pg-button" to="/login">Get Started →</Link><small>Powered by Global Student System</small></main>;
 }
 function AuthForm({ register }: { register: boolean }) {
-  const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false); const navigate = useNavigate();
+  const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false); const [otpStep, setOtpStep] = useState(false); const [demoCode, setDemoCode] = useState(''); const [enteredCode, setEnteredCode] = useState(''); const [draft, setDraft] = useState<Record<string,string> | null>(null); const navigate = useNavigate();
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!supabase) return;
-    const d = new FormData(e.currentTarget);
+    const d = otpStep && draft ? new FormData() : new FormData(e.currentTarget);
+    if (otpStep && draft) Object.entries(draft).forEach(([k,v]) => d.set(k,v));
     const email = String(d.get('email') || '').trim().toLowerCase();
     const password = String(d.get('password') || '');
     const fullName = String(d.get('fullName') || '').trim();
@@ -42,6 +43,8 @@ function AuthForm({ register }: { register: boolean }) {
       if (!/^(?:0[67]\\d{8}|(?:\\+?255)[67]\\d{8})$/.test(phone)) { setMessage('Enter a valid Tanzanian mobile number.'); return; }
       if (password !== String(d.get('confirmPassword') || '')) { setMessage('Passwords do not match.'); return; }
     }
+    if (register && !otpStep) { const code = String(Math.floor(100000 + Math.random() * 900000)); setDemoCode(code); setEnteredCode(''); setDraft(Object.fromEntries(d.entries()) as Record<string,string>); setOtpStep(true); setMessage(''); return; }
+    if (register && (enteredCode !== demoCode || !draft)) { setMessage('Incorrect demonstration code.'); return; }
     setBusy(true); setMessage('');
     try {
       if (register) {
@@ -59,7 +62,8 @@ function AuthForm({ register }: { register: boolean }) {
       }
     } catch (err) { setMessage(err instanceof Error ? err.message : 'Authentication failed.'); } finally { setBusy(false); }
   }
-  return <Frame><h1>{register ? 'Create student account' : 'Student Login'}</h1><p>{register ? 'Enter your student details to create a secure account. Institution enrollment will be verified separately.' : 'Use your email address and password. Demo PINs are not accepted.'}</p>
+  if (register && otpStep) return <Frame><h1>OTP demonstration</h1><p>Step 2 of 3 — Confirm the simulated code before account creation.</p><p className="pg-note"><strong>Testing only.</strong> No SMS is sent. This does not verify ownership of your mobile number and must not be used as financial identity verification.</p><div className="pg-details"><p><strong>Demo code (shown on screen)</strong><span style={{fontSize:24,letterSpacing:3}}>{demoCode}</span></p></div><form className="pg-form" onSubmit={submit}><label htmlFor="demo-otp">Enter the 6-digit demo code</label><input id="demo-otp" type="text" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={enteredCode} onChange={e=>setEnteredCode(e.target.value.replace(/[^0-9]/g,'').slice(0,6))} required/><button className="pg-button" disabled={busy}>{busy ? 'Creating account…' : 'Confirm demo code & create account'}</button>{message && <p role="status">{message}</p>}</form><button className="pg-button pg-outline" type="button" disabled={busy} onClick={()=>{setOtpStep(false);setDraft(null);setMessage('');}}>Back to registration</button></Frame>;
+  return <Frame><h1>{register ? 'Create student account' : 'Student Login'}</h1><p>{register ? 'Step 1 of 3 — Enter student details. The next step is an OTP simulation; no SMS will be sent.' : 'Use your email address and password. Demo PINs are not accepted.'}</p>
     <form className="pg-form" onSubmit={submit}>
       {register && <>
         <label htmlFor="fullName">Full name</label><input id="fullName" name="fullName" autoComplete="name" minLength={2} maxLength={120} required />
@@ -70,7 +74,7 @@ function AuthForm({ register }: { register: boolean }) {
       <label htmlFor="email">Email address</label><input id="email" name="email" type="email" autoComplete="email" required />
       <label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={8} required />
       {register && <><label htmlFor="confirmPassword">Confirm password</label><input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required /><p className="pg-note">Your institution and admission number are pending verification. Do not enter your NIDA number at this stage.</p></>}
-      <button className="pg-button" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Log in'}</button>
+      <button className="pg-button" disabled={busy}>{busy ? 'Please wait…' : register ? 'Continue to OTP demo →' : 'Log in'}</button>
       {message && <p role="status">{message}</p>}
     </form><p className="pg-switch">{register ? <>Already registered? <Link to="/login">Log in</Link></> : <>New student? <Link to="/register">Sign up</Link></>}</p></Frame>;
 }

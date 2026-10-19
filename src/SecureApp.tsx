@@ -253,7 +253,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  <p className="pg-note">The university schedule includes non-tuition charges. Payment must use RUCU SIMS control numbers. This is a fee reference only, not a payment request. Accommodation, NHIF and late-registration charges may apply separately.</p>
  </div>}
  </>:<p className="pg-note">No verified course fee schedule has been provided for this institution. Ask your university administrator to publish the official schedule.</p>}
- </section>{account&&<LinkedAccounts account={account}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}
+ </section>{account&&<LinkedAccounts account={account} supabase={supabase ?? undefined} userId={session.user.id}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}
  {error&&<p className="pg-error" role="alert">{error}</p>}
  <p className="pg-note">Wallet, merchant and services are browser-based demonstrations only. No real payments or banking connections.</p>
  </section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;

@@ -59,19 +59,20 @@ export function AddMoneyPage({account,supabase,userId}:{account:string;supabase:
  const [message,setMessage]=useState('');
  const [review,setReview]=useState<{amount:number;provider:string;number:string}|null>(null);
  const [balance,setBalance]=useState(()=>walletInfo(account).balance);
+ const [otp,setOtp]=useState('');
  function submit(e:FormEvent<HTMLFormElement>){
   e.preventDefault();setError('');setMessage('');setReview(null);
   const n=amountOf(amount);
   if(!n||n>5000000){setError('Enter a valid demo amount between TZS 1 and TZS 5,000,000.');return;}
   if(!bank){setError('Link NMB account in Profile first.');return;}
-  setReview({amount:n,provider:'NMB Bank',number:bank.account_number});
+  setOtp('');setReview({amount:n,provider:'NMB Bank',number:bank.account_number});
  }
- function confirmDemoTopup(){if(!review)return;setError('');try{
+ function confirmDemoTopup(){if(!review)return;setError('');if(otp!=='123456'){setError('Incorrect demo OTP. Use 123456.');return;}try{
   const store=load();const previous=store.balances[account]||0;
   if(!Number.isSafeInteger(previous+review.amount))throw Error('Invalid balance');
   const txId=id();store.balances[account]=previous+review.amount;
   store.transactions.push({id:txId,kind:'Add Money · Demo',amount:review.amount,from:review.provider+' · '+mask(review.number),to:account,at:new Date().toISOString(),note:'SIMULATED ONLY · No external funds debited'});
-  store.processed.push(txId);save(store);setBalance(store.balances[account]);setMessage('Demo top-up completed. Wallet balance updated locally; no real money was transferred.');setReview(null);setAmount('');
+  store.processed.push(txId);save(store);setBalance(store.balances[account]);setMessage('Demo top-up completed. Wallet balance updated locally; no real money was transferred.');setReview(null);setAmount('');setOtp('');
  }catch{setError('Could not save the simulated top-up.');}}
  return <Section title="Add Money">
  <p>Choose a demo funding method. Linked NMB bank top-ups update only your simulated wallet balance.</p><div className="pg-feature-card"><strong>Available demo balance: {money(balance)}</strong><p className="pg-note">Demo funds are not real money and cannot be withdrawn.</p></div>
@@ -81,7 +82,7 @@ export function AddMoneyPage({account,supabase,userId}:{account:string;supabase:
  <h2>Top up from Linked NMB Bank</h2>{loadingBank?<p>Loading bank…</p>:!bank?<p>No linked bank. <Link to="/profile">Link NMB in Profile →</Link></p>:<p>{bank.account_holder} · {mask(bank.account_number)}</p>}
  <label htmlFor="pg-topup-amount">Amount (TZS)</label><input id="pg-topup-amount" type="number" min="1" max="5000000" step="1" placeholder="Enter amount" value={amount} onChange={e=>setAmount(e.target.value)} required/>
  <button className="pg-button" type="submit" disabled={!bank||loadingBank}>Review Demo Top-Up →</button>
- {review&&<div className="pg-feature-card" role="status"><h3>Confirm simulated top-up</h3><p><strong>Amount:</strong> {money(review.amount)}</p><p><strong>Source:</strong> {review.provider} · {mask(review.number)}</p><p>No charge will be made to this source. Only your local demo balance will increase.</p><button className="pg-button" type="button" onClick={confirmDemoTopup}>Confirm Demo Top-Up</button><button className="pg-button pg-outline" type="button" onClick={()=>setReview(null)}>Cancel</button></div>}{error&&<p className="pg-error" role="alert">{error}</p>}{message&&<p className="pg-services-message" role="status">{message}</p>}
+ {review&&<div className="pg-feature-card" role="status"><h3>Confirm simulated top-up</h3><p><strong>Amount:</strong> {money(review.amount)}</p><p><strong>Source:</strong> {review.provider} · {mask(review.number)}</p><p>No charge will be made to this source. Only your local demo balance will increase.</p><p className="pg-otp-hint">Demo OTP: <strong>123456</strong> · No SMS is sent.</p><label htmlFor="bank-topup-otp">Enter 6-digit OTP</label><input id="bank-topup-otp" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" value={otp} onChange={e=>setOtp(e.target.value.replace(/[^0-9]/g,'').slice(0,6))}/><button className="pg-button" type="button" onClick={confirmDemoTopup} disabled={otp.length!==6}>Verify OTP & Add Money</button><button className="pg-button pg-outline" type="button" onClick={()=>setReview(null)}>Cancel</button></div>}{error&&<p className="pg-error" role="alert">{error}</p>}{message&&<p className="pg-services-message" role="status">{message}</p>}
  <p className="pg-note">Confirming increases your local demo wallet balance and creates a demo transaction record. No bank or mobile-money account is debited. Never enter a PIN or password.</p>
  </form>}
  </Section>;

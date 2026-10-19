@@ -94,6 +94,15 @@ function RegistrationSuccess({ session }: { session: Session }) {
   const [failure, setFailure] = useState('');
   const [running, setRunning] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const navigate = useNavigate();
+  async function continueToLogin() {
+    if (!supabase) return;
+    setLeaving(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) { setFailure('Could not securely end the registration session: ' + error.message); setLeaving(false); return; }
+    navigate('/login', { replace: true });
+  }
   useEffect(() => {
     let active = true;
     async function verify() {
@@ -163,7 +172,7 @@ function RegistrationSuccess({ session }: { session: Session }) {
       <p style={{fontSize:11,color:'#666',margin:'8px 0 0'}}>Account generated and verified</p>
     </div>}
     {failure && <button type="button" className="pg-button pg-outline" onClick={()=>setAttempt(n=>n+1)}>Retry verification</button>}
-    {!running && !failure && <Link className="pg-button" to="/dashboard">Continue to Dashboard →</Link>}
+    {!running && !failure && <><p style={{fontSize:13,color:"#555",textAlign:"center",marginBottom:12}}>Registration is complete. Log in with your email and password to access your dashboard.</p><button type="button" className="pg-button" disabled={leaving} onClick={()=>void continueToLogin()}>{leaving ? "Preparing secure login…" : "Continue to Login →"}</button></>}
     <p className="pg-note" style={{fontSize:11,lineHeight:1.5,textAlign:'center',marginTop:18}}>University enrollment and mobile ownership are not yet independently verified. Real payments remain disabled.</p>
   </section></Frame>;
 }

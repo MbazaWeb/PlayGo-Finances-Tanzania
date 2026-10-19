@@ -70,6 +70,32 @@ function StudentLoan({account}:{account:string}){
   <p className="pg-note">Demo requests are stored in this browser only, not in Supabase. No money is lent or transferred.</p>
  </section>;
 }
+type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;createdAt:string;status:'Demo only · Not approved'};
+const QUICK_KEY='playgo.demo.quick-loan.v1';
+function getQuickLoans():QuickLoanRequest[]{try{const x:unknown=JSON.parse(localStorage.getItem(QUICK_KEY)||'[]');return Array.isArray(x)?x as QuickLoanRequest[]:[];}catch{return [];}}
+export function QuickLoan({account}:{account:string}){
+ const [amount,setAmount]=useState('');const [term,setTerm]=useState('30');const [reason,setReason]=useState('Emergency student expenses');
+ const [message,setMessage]=useState('');const [requests,setRequests]=useState(()=>getQuickLoans().filter(x=>x.account===account));
+ function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const n=Number(amount),days=Number(term);setMessage('');
+ if(!Number.isSafeInteger(n)||n<5000||n>500000){setMessage('Demo amount must be TZS 5,000–500,000.');return;}
+ if(![7,14,30].includes(days)){setMessage('Choose a valid period.');return;}
+ const request:QuickLoanRequest={id:'QL-'+crypto.randomUUID().slice(0,8).toUpperCase(),account,amount:n,termDays:days,reason,createdAt:new Date().toISOString(),status:'Demo only · Not approved'};
+ try{const all=[...getQuickLoans(),request];localStorage.setItem(QUICK_KEY,JSON.stringify(all));setRequests(all.filter(x=>x.account===account));setAmount('');setMessage('Demo quick-loan request saved. No loan approved, no funds added to wallet.');}catch{setMessage('Could not save demo request.');}}
+ return <section className="pg-feature-card" id="quick-loan">
+ <div className="pg-services-heading"><h2>Quick Loan</h2><span>Demo only</span></div>
+ <p>Need money for urgent student expenses? Explore a short-term loan request similar in convenience to mobile quick-loan services.</p>
+ <div className="pg-details"><p><strong>Available to borrow</strong><span>Not assessed</span></p><p><strong>Approved loan</strong><span>None</span></p><p><strong>Instant wallet top-up</strong><span>Disabled until lender integration</span></p></div>
+ <form className="pg-form" onSubmit={submit}>
+ <label htmlFor="quick-amount">Amount requested (TZS)</label><input id="quick-amount" type="number" inputMode="numeric" min={5000} max={500000} step={1000} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="e.g. 20000" required/>
+ <label htmlFor="quick-term">Preferred repayment period</label><select id="quick-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select>
+ <label htmlFor="quick-reason">Purpose</label><select id="quick-reason" value={reason} onChange={e=>setReason(e.target.value)}><option>Emergency student expenses</option><option>Books and materials</option><option>Meals and transport</option><option>Temporary wallet shortfall</option></select>
+ <p className="pg-note">No lender is connected. Loan eligibility, interest, fees and repayment terms are not available. Submitting this form does not create a debt or credit your PlayGo balance.</p>
+ <button className="pg-button" type="submit">Save Quick Loan Demo Request</button></form>
+ {message&&<p className="pg-services-message" role="status">{message}</p>}
+ <h3>My Quick Loan Requests</h3>{requests.length===0?<p className="pg-note">No requests yet.</p>:requests.slice().reverse().map(x=><div key={x.id} className="pg-service-request"><strong>TZS {x.amount.toLocaleString('en-TZ')}</strong><small>{x.id} · {new Date(x.createdAt).toLocaleDateString('en-TZ')}</small><p>{x.termDays} days · {x.reason}</p><span>{x.status}</span></div>)}
+ <p className="pg-note">Requests are stored on this device only. Real quick loans and automatic top-ups require an approved lender, credit assessment and explicit loan terms.</p>
+ </section>;
+}
 export function ServicesPage({ account, institution }: { account: string; institution: string }) {
   const [type, setType] = useState(options[0]);
   const [details, setDetails] = useState('');
@@ -97,8 +123,10 @@ export function ServicesPage({ account, institution }: { account: string; instit
       <Link className="pg-service-tile" to="/add-money"><span className="pg-service-symbol" aria-hidden="true">＋</span><strong>Add Money</strong><small>Fund your wallet</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/profile"><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Linked Accounts</strong><small>NMB Bank only</small><span className="pg-service-arrow">›</span></Link>
       <a className="pg-service-tile" href="#student-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Student Loan</strong><small>Funding status & borrowing</small><span className="pg-service-arrow">›</span></a>
+      <Link className="pg-service-tile" to="/quick-loan"><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Quick Loan</strong><small>Emergency loan demo</small><span className="pg-service-arrow">›</span></Link>
     </div>
     <StudentLoan account={account}/>
+    <QuickLoan account={account}/>
     <section className="pg-feature-card pg-service-fee">
       <div className="pg-services-heading"><h2>Fee Status</h2><span>Demo</span></div>
       <p className="pg-service-institution">{institution}</p>

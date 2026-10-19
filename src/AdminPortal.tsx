@@ -2,7 +2,7 @@ import {useEffect,useState,type FormEvent} from 'react';
 import {Link} from 'react-router-dom';
 import type {Session,SupabaseClient} from '@supabase/supabase-js';
 import './admin.css';
-type Institute={id:string;name:string;created_at:string};
+type Institute={id:string;name:string;created_at:string;code:string|null;email:string|null;phone:string|null;address:string|null;region:string|null;website:string|null;contact_person:string|null;admin_username:string|null;admin_user_id:string|null};
 type Section='dashboard'|'institutions'|'reports'|'settings';
 export default function AdminPortal({session,supabase}:{session:Session;supabase:SupabaseClient}){
  const [section,setSection]=useState<Section>('dashboard');
@@ -11,6 +11,8 @@ export default function AdminPortal({session,supabase}:{session:Session;supabase
  const [enrollmentCount,setEnrollmentCount]=useState(0);
  const [transactionCount,setTransactionCount]=useState(0);
  const [name,setName]=useState('');
+ const [details,setDetails]=useState({code:'',email:'',phone:'',address:'',region:'',website:'',contact_person:'',admin_username:''});
+ const [password,setPassword]=useState('');
  const [editing,setEditing]=useState<string|null>(null);
  const [notice,setNotice]=useState('');
  const [busy,setBusy]=useState(false);
@@ -19,7 +21,7 @@ export default function AdminPortal({session,supabase}:{session:Session;supabase
  const [authorized,setAuthorized]=useState(false);
  async function refresh(){
   const [inst,students,enrollments,transactions]=await Promise.all([
-   supabase.from('pg_institutions').select('id,name,created_at').order('name'),
+   supabase.from('pg_institutions').select('id,name,created_at,code,email,phone,address,region,website,contact_person,admin_username,admin_user_id').order('name'),
    supabase.from('pg_profiles').select('user_id',{count:'exact',head:true}),
    supabase.from('pg_enrollments').select('id',{count:'exact',head:true}),
    supabase.from('pg_demo_transactions').select('id',{count:'exact',head:true})
@@ -36,11 +38,23 @@ export default function AdminPortal({session,supabase}:{session:Session;supabase
  })();return()=>{active=false;};},[supabase,session.user.id]);
  async function save(e:FormEvent){e.preventDefault();if(!authorized)return;const clean=name.trim();if(clean.length<3||clean.length>160){setNotice('Institution name must contain 3–160 characters.');return;}
   setBusy(true);setNotice('');
-  const response=editing?await supabase.from('pg_institutions').update({name:clean}).eq('id',editing):await supabase.from('pg_institutions').insert({name:clean});
-  setBusy(false);
-  if(response.error){setNotice('Unable to save: '+response.error.message);return;}
-  setName('');setEditing(null);setNotice(editing?'Institution updated.':'Institution created.');await refresh();
+  const payload={name:clean,code:details.code.trim()||null,email:details.email.trim()||null,phone:details.phone.trim()||null,address:details.address.trim()||null,region:details.region.trim()||null,website:details.website.trim()||null,contact_person:details.contact_person.trim()||null};
+  const response=editing?await supabase.from('pg_institutions').update(payload).eq('id',editing).select('id').single():await supabase.from('pg_institutions').insert(payload).select('id').single();
+  if(response.error||!response.data){setBusy(false);setNotice('Unable to save: '+(response.error?.message||'No record returned'));return;}
+  const targetId=response.data.id as string;
+  const selected=institutions.find(x=>x.id===editing);
+  let accountNotice='';
+  if(details.admin_username.trim()&&password){
+   if(selected?.admin_user_id){accountNotice=' Existing institution account was preserved. Password reset requires a separate secure process.';}
+   else{
+    const result=await supabase.functions.invoke('pg-admin-create-institution-user',{body:{institution_id:targetId,username:details.admin_username,email:details.email,password}});
+    if(result.error||result.data?.error){accountNotice=' Institution saved, but account setup failed: '+(result.data?.error||result.error?.message||'Unknown error');}
+    else accountNotice=' Institution administrator account created.';
+   }
+  }else if(details.admin_username.trim()&&!selected?.admin_user_id){accountNotice=' Institution saved. Enter a password to create the administrator login.';}
+  setBusy(false);setName('');setPassword('');setDetails({code:'',email:'',phone:'',address:'',region:'',website:'',contact_person:'',admin_username:''});setEditing(null);setNotice((editing?'Institution updated.':'Institution created.')+accountNotice);await refresh();
  }
+ function editInstitute(x:Institute){setEditing(x.id);setName(x.name);setPassword('');setDetails({code:x.code||'',email:x.email||'',phone:x.phone||'',address:x.address||'',region:x.region||'',website:x.website||'',contact_person:x.contact_person||'',admin_username:x.admin_username||''});setNotice('');}
  const nav:[Section,string,string][]=[['dashboard','▦','Dashboard'],['institutions','▤','Institutions'],['reports','▥','Reports'],['settings','⚙','Settings']];
  if(loading)return <main className="pga-guard">Checking administrator access…</main>;
  if(!authorized)return <main className="pga-guard"><h1>Admin access restricted</h1><p>This account does not have the PlayGo administrator role. Access must be granted by a trusted project owner, not by the browser.</p><Link to="/dashboard">Return to student portal</Link></main>;
@@ -51,7 +65,7 @@ export default function AdminPortal({session,supabase}:{session:Session;supabase
  {section==='dashboard'&&<><div className="pga-heading"><div><h2>Welcome to PlayGo</h2><p>Monitor your platform's student and institution activity.</p></div><button className="pga-primary" onClick={()=>setSection('institutions')}>+ Add Institution</button></div>
  <div className="pga-stats"><article><span>Registered students</span><strong>{studentCount.toLocaleString()}</strong><small>Student profiles</small></article><article><span>Institutions</span><strong>{institutions.length.toLocaleString()}</strong><small>Available institutions</small></article><article><span>Enrollments</span><strong>{enrollmentCount.toLocaleString()}</strong><small>Recorded enrollments</small></article><article><span>Demo transactions</span><strong>{transactionCount.toLocaleString()}</strong><small>Simulated activity only</small></article></div>
  <div className="pga-card"><div className="pga-card-head"><div><h3>Institution directory</h3><p>Recently available institutions</p></div><button className="pga-link" onClick={()=>setSection('institutions')}>View all →</button></div><table><thead><tr><th>Institution</th><th>Created</th><th>Record</th></tr></thead><tbody>{institutions.slice(0,6).map(x=><tr key={x.id}><td><b>{x.name}</b></td><td>{new Date(x.created_at).toLocaleDateString()}</td><td>Active</td></tr>)}{!institutions.length&&<tr><td colSpan={3}>No institutions yet.</td></tr>}</tbody></table></div></>}
- {section==='institutions'&&<><div className="pga-heading"><div><h2>Manage institutions</h2><p>Create and maintain institutions available in PlayGo.</p></div></div><div className="pga-card pga-form-card"><h3>{editing?'Edit institution':'Create institution'}</h3><form onSubmit={save}><label htmlFor="pga-institution">Institution name</label><div className="pga-form-row"><input id="pga-institution" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Ruaha Catholic University (RUCU)" maxLength={160} required/><button className="pga-primary" disabled={busy}>{busy?'Saving…':editing?'Save Changes':'+ Add Institution'}</button>{editing&&<button type="button" className="pga-secondary" onClick={()=>{setEditing(null);setName('');}}>Cancel</button>}</div></form>{notice&&<p role="status">{notice}</p>}</div><div className="pga-card"><div className="pga-card-head"><h3>All institutions ({institutions.length})</h3></div><table><thead><tr><th>Institution</th><th>Date added</th><th>Action</th></tr></thead><tbody>{institutions.map(x=><tr key={x.id}><td><b>{x.name}</b></td><td>{new Date(x.created_at).toLocaleDateString()}</td><td><button className="pga-link" onClick={()=>{setEditing(x.id);setName(x.name);}}>Edit</button></td></tr>)}{!institutions.length&&<tr><td colSpan={3}>Create your first institution above.</td></tr>}</tbody></table></div></>}
+ {section==='institutions'&&<><div className="pga-heading"><div><h2>Manage institutions</h2><p>Create and maintain institutions available in PlayGo.</p></div></div><div className="pga-card pga-form-card"><h3>{editing?'Edit institution':'Create institution'}</h3><form onSubmit={save}><div className="pga-institution-fields"><label>Institution name *<input value={name} onChange={e=>setName(e.target.value)} required maxLength={160} placeholder="Ruaha Catholic University (RUCU)"/></label>{([['code','Institution code'],['email','Institution admin email'],['phone','Phone number'],['region','Region'],['address','Physical address'],['website','Website'],['contact_person','Contact person'],['admin_username','Admin username']] as const).map(([key,label])=><label key={key}>{label}<input type={key==='email'?'email':key==='website'?'url':'text'} value={details[key]} onChange={e=>setDetails(v=>({...v,[key]:e.target.value}))} placeholder={label} maxLength={200}/></label>)}<label>Institution admin password {editing?'(new accounts only)':''}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimum 12 characters"/></label></div><p className="pga-hint">To create a new institution administrator login, enter admin email, username and password. Passwords are handled by Supabase Auth and are never stored in the institution table. Existing accounts are not overwritten.</p><div className="pga-form-row"><button className="pga-primary" disabled={busy}>{busy?'Saving…':editing?'Save Institution':'+ Create Institution'}</button>{editing&&<button type="button" className="pga-secondary" onClick={()=>{setEditing(null);setName('');setPassword('');setDetails({code:'',email:'',phone:'',address:'',region:'',website:'',contact_person:'',admin_username:''});}}>Cancel edit</button>}</div></form>{notice&&<p role="status">{notice}</p>}</div><div className="pga-card"><div className="pga-card-head"><h3>All institutions ({institutions.length})</h3></div><table><thead><tr><th>Institution</th><th>Date added</th><th>Action</th></tr></thead><tbody>{institutions.map(x=><tr key={x.id}><td><b>{x.name}</b></td><td>{new Date(x.created_at).toLocaleDateString()}</td><td><button className="pga-link" onClick={()=>editInstitute(x)}>Edit</button></td></tr>)}{!institutions.length&&<tr><td colSpan={3}>Create your first institution above.</td></tr>}</tbody></table></div></>}
  {section==='reports'&&<><div className="pga-heading"><div><h2>Platform reports</h2><p>Current counts from Supabase. Demo transactions are not real money.</p></div><button className="pga-secondary" onClick={()=>void refresh()}>Refresh data</button></div><div className="pga-stats"><article><span>Students</span><strong>{studentCount}</strong></article><article><span>Institutions</span><strong>{institutions.length}</strong></article><article><span>Enrollments</span><strong>{enrollmentCount}</strong></article><article><span>Demo transactions</span><strong>{transactionCount}</strong></article></div><div className="pga-card"><h3>Reporting scope</h3><p>Counts reflect current records. Financial settlement, revenue, bank balances and verified payments are not available while integrations remain disabled.</p></div></>}
  {section==='settings'&&<><div className="pga-heading"><div><h2>Platform settings</h2><p>Read-only operational settings and access details.</p></div></div><div className="pga-card pga-settings"><div><b>Environment</b><span>Demo / Non-production financial operations</span></div><div><b>Payment integration</b><span>Disabled — NMB approval pending</span></div><div><b>Access control</b><span>Server-verified administrator role</span></div><div><b>Signed-in account</b><span>{session.user.email||session.user.id}</span></div></div></>}
  </div></div></div>;

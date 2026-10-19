@@ -210,7 +210,18 @@ type StudentTab = 'home'|'merchant'|'services'|'profile';
 function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const [profile,setProfile]=useState<Profile|null>(null);
  const [error,setError]=useState('');
+ const [course,setCourse]=useState(String(session.user.user_metadata?.course_requested||''));
+ const [studyYear,setStudyYear]=useState(String(session.user.user_metadata?.study_year_requested||'1'));
+ const [savingCourse,setSavingCourse]=useState(false);
+ const [courseMessage,setCourseMessage]=useState('');
  const navigate=useNavigate();
+ async function saveCourse(){
+   if(!supabase)return;
+   setSavingCourse(true);setCourseMessage('');
+   const {error}=await supabase.auth.updateUser({data:{course_requested:course,study_year_requested:studyYear}});
+   setSavingCourse(false);setCourseMessage(error?'Could not save course selection: '+error.message:'Course selection saved. Admission is pending university verification.');
+ }
+
  useEffect(()=>{let active=true;void supabase?.from('pg_profiles').select('user_id,full_name,playgo_account').eq('user_id',session.user.id).maybeSingle().then(({data,error})=>{if(!active)return;if(error)setError(error.message);setProfile(data as Profile|null);});return()=>{active=false;};},[session.user.id]);
  const account=profile?.playgo_account||'';
  const institution=String(session.user.user_metadata?.institution_requested||'Institution pending verification');
@@ -221,7 +232,28 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution}/>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account}/>:<p>Loading account…</p>)}
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution}/>:<p>Loading account…</p>)}
- {tab==='profile'&&<><h1>My Profile</h1><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Pending</span></p></div>{account&&<LinkedAccounts account={account}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}
+ {tab==='profile'&&<><h1>My Profile</h1><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Pending</span></p></div><section style={{margin:'22px 0',border:'1px solid #e5e5e5',borderRadius:16,padding:16}}>
+ <h2 style={{marginTop:0}}>Course Admitted & Fees</h2>
+ <p className="pg-note">Course selection is student-declared, not yet verified by the university.</p>
+ {institution.toLowerCase().includes('ruaha catholic')?
+ <>
+ <div className="pg-form">
+ <label htmlFor="pg-course">Course admitted</label>
+ <select id="pg-course" value={course} onChange={e=>setCourse(e.target.value)}><option value="">Select course</option><option value="Diploma in Business Administration (DBA)">Diploma in Business Administration (DBA)</option></select>
+ <label htmlFor="pg-study-year">Year of study</label>
+ <select id="pg-study-year" value={studyYear} onChange={e=>setStudyYear(e.target.value)}><option value="1">Year 1</option><option value="2">Year 2</option></select>
+ <button type="button" className="pg-button pg-outline" disabled={savingCourse||!course} onClick={()=>void saveCourse()}>{savingCourse?'Saving…':'Save course selection'}</button>
+ {courseMessage&&<p role="status" style={{fontSize:13}}>{courseMessage}</p>}
+ </div>
+ {course==='Diploma in Business Administration (DBA)'&&<div style={{marginTop:16}}>
+ <p className="pg-eyebrow">RUCU · DBA · ACADEMIC YEAR 2026/2027</p>
+ <div className="pg-details"><p><strong>Programme duration</strong><span>2 years</span></p><p><strong>Year {studyYear} fees</strong><span>TZS {(studyYear==='1'?1335000:1445000).toLocaleString()}</span></p><p><strong>Whole programme</strong><span>TZS 2,780,000</span></p><p><strong>Tuition per year</strong><span>TZS 1,060,000</span></p><p><strong>Fee payment status</strong><span>Not verified</span></p></div>
+ <h3>Payment schedule · Year {studyYear}</h3>
+ <div className="pg-details">{[studyYear==='1'?540000:650000,265000,265000,265000].map((amount,i)=><p key={i}><strong>Instalment {i+1}</strong><span>TZS {amount.toLocaleString()}</span></p>)}</div>
+ <p className="pg-note">The university schedule includes non-tuition charges. Payment must use RUCU SIMS control numbers. This is a fee reference only, not a payment request. Accommodation, NHIF and late-registration charges may apply separately.</p>
+ </div>}
+ </>:<p className="pg-note">No verified course fee schedule has been provided for this institution. Ask your university administrator to publish the official schedule.</p>}
+ </section>{account&&<LinkedAccounts account={account}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}
  {error&&<p className="pg-error" role="alert">{error}</p>}
  <p className="pg-note">Wallet, merchant and services are browser-based demonstrations only. No real payments or banking connections.</p>
  </section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;

@@ -30,13 +30,28 @@ function AuthForm({ register }: { register: boolean }) {
   const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false); const navigate = useNavigate();
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!supabase) return;
-    const d = new FormData(e.currentTarget); const email = String(d.get('email') || '').trim(); const password = String(d.get('password') || '');
+    const d = new FormData(e.currentTarget);
+    const email = String(d.get('email') || '').trim().toLowerCase();
+    const password = String(d.get('password') || '');
+    const fullName = String(d.get('fullName') || '').trim();
+    const institution = String(d.get('institution') || '').trim();
+    const admissionNumber = String(d.get('admissionNumber') || '').trim();
+    const phone = String(d.get('phone') || '').replace(/[\\s-]/g, '');
+    if (register) {
+      if (fullName.length < 2 || fullName.length > 120 || !institution || !admissionNumber) { setMessage('Complete your name, institution and admission number.'); return; }
+      if (!/^(?:0[67]\\d{8}|(?:\\+?255)[67]\\d{8})$/.test(phone)) { setMessage('Enter a valid Tanzanian mobile number.'); return; }
+      if (password !== String(d.get('confirmPassword') || '')) { setMessage('Passwords do not match.'); return; }
+    }
     setBusy(true); setMessage('');
     try {
       if (register) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email, password,
+          options: { data: { full_name: fullName, institution_requested: institution, admission_number_requested: admissionNumber, phone_requested: phone } }
+        });
         if (error) throw error;
-        setMessage('Registration submitted. If email confirmation is enabled, check your inbox before logging in.');
+        if (data.session) navigate('/dashboard', { replace: true });
+        else setMessage('Account created. Log in to continue. If confirmation is required by Supabase, follow its instructions.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -44,7 +59,20 @@ function AuthForm({ register }: { register: boolean }) {
       }
     } catch (err) { setMessage(err instanceof Error ? err.message : 'Authentication failed.'); } finally { setBusy(false); }
   }
-  return <Frame><h1>{register ? 'Create student account' : 'Student Login'}</h1><p>Use your email address and a strong password. Demo PINs are not accepted.</p><form className="pg-form" onSubmit={submit}><label htmlFor="email">Email address</label><input id="email" name="email" type="email" autoComplete="email" required/><label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={8} required/><button className="pg-button" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Log in'}</button>{message && <p role="status">{message}</p>}</form><p className="pg-switch">{register ? <>Already registered? <Link to="/login">Log in</Link></> : <>New student? <Link to="/register">Sign up</Link></>}</p></Frame>;
+  return <Frame><h1>{register ? 'Create student account' : 'Student Login'}</h1><p>{register ? 'Enter your student details to create a secure account. Institution enrollment will be verified separately.' : 'Use your email address and password. Demo PINs are not accepted.'}</p>
+    <form className="pg-form" onSubmit={submit}>
+      {register && <>
+        <label htmlFor="fullName">Full name</label><input id="fullName" name="fullName" autoComplete="name" minLength={2} maxLength={120} required />
+        <label htmlFor="institution">University / College / Institution</label><input id="institution" name="institution" maxLength={150} required />
+        <label htmlFor="admissionNumber">Admission / Registration number</label><input id="admissionNumber" name="admissionNumber" maxLength={80} required />
+        <label htmlFor="phone">Mobile number (Tanzania)</label><input id="phone" name="phone" type="tel" autoComplete="tel" placeholder="07XXXXXXXX" required />
+      </>}
+      <label htmlFor="email">Email address</label><input id="email" name="email" type="email" autoComplete="email" required />
+      <label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={8} required />
+      {register && <><label htmlFor="confirmPassword">Confirm password</label><input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required /><p className="pg-note">Your institution and admission number are pending verification. Do not enter your NIDA number at this stage.</p></>}
+      <button className="pg-button" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Log in'}</button>
+      {message && <p role="status">{message}</p>}
+    </form><p className="pg-switch">{register ? <>Already registered? <Link to="/login">Log in</Link></> : <>New student? <Link to="/register">Sign up</Link></>}</p></Frame>;
 }
 function Dashboard({ session }: { session: Session }) {
   const [profile, setProfile] = useState<Profile | null>(null);

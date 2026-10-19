@@ -196,7 +196,7 @@ function WalletRoute({ session, page }: { session: string | null; page: 'fee'|'t
   return <main className="pg-page pg-student-page"><section className="pg-panel">
     {page === 'fee' && <FeePage account={account.accountNumber} />}
     {page === 'transfer' && <TransferPage account={account.accountNumber} findAccount={findAccount} />}
-    {page === 'topup' && <<></> />}
+    {page === 'topup' && <p>Use the secure student wallet for linked NMB demo top-ups.</p>}
     {page === 'otp' && <TransactionOtp account={account.accountNumber} findAccount={findAccount} />}
     {page === 'status' && <TransactionStatus account={account.accountNumber} />}
     {page === 'history' && <><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Transaction History</h1><History account={account.accountNumber} /></>}

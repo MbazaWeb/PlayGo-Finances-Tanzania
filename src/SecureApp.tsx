@@ -210,6 +210,43 @@ function Dashboard({ session }: { session: Session }) {
   }, [session.user.id]);
   return <Frame><h1>Hello, {profile?.full_name || 'Student'}!</h1><p>Signed in as {session.user.email}</p><div className="pg-details"><p><strong>PlayGo Account</strong><span>{profile?.playgo_account || 'Pending provisioning'}</span></p><p><strong>Banking</strong><span>Not connected</span></p><p><strong>Real payments</strong><span>Disabled</span></p></div><h2>My institutions</h2>{enrollments.length ? enrollments.map(e=><p key={e.id}>{institutions.find(i=>i.id===e.institution_id)?.name || 'Institution'} · {e.admission_number} · {e.active ? 'Active' : 'Inactive'}</p>) : <p>No verified institution enrollment yet. Contact your institution administrator.</p>}<h2>Published fee schedules</h2>{years.length ? years.map(y=><div key={y.id}><strong>{institutions.find(i=>i.id===y.institution_id)?.name} — {y.label}</strong>{installments.filter(t=>t.academic_year_id===y.id).map(t=><p key={t.id}>Installment {t.installment_number}: TZS {Number(t.amount_tzs).toLocaleString()} · Due {t.due_date}</p>)}</div>) : <p>No published schedules available.</p>}{error && <p className="pg-error" role="alert">{error}</p>}<button className="pg-button pg-outline" onClick={()=>void supabase?.auth.signOut()}>Log out</button></Frame>;
 }
+type StudentFinance={courseName:string;fee:number|null;feeSource:string;loanRows:{id:string;academic_year:string;amount_tzs:number;status:string;tuition_tzs:number;meals_accommodation_tzs:number;books_stationery_tzs:number;field_practical_tzs:number;research_tzs:number;other_tzs:number}[];credits:{id:string;academic_year:string;amount_tzs:number;source:string;reference:string;confirmed_at:string}[]};
+function StudentFinancialOverview({userId,studyYear}:{userId:string;studyYear:string}){
+ const [finance,setFinance]=useState<StudentFinance|null>(null);const [message,setMessage]=useState('Loading institution-approved financial records…');
+ useEffect(()=>{let mounted=true;async function load(){
+  if(!supabase)return;
+  const requests=await supabase.from('pg_student_requests').select('institution_id,course_id,status').eq('user_id',userId).eq('status','approved');
+  if(!mounted)return;
+  if(requests.error){setMessage('Unable to load approved enrollment: '+requests.error.message);return;}
+  const request=requests.data?.find(r=>r.course_id);
+  if(!request){setMessage('Your institution must approve your course before a fee balance can be calculated.');return;}
+  const [course,fees,loans,credits]=await Promise.all([
+   supabase.from('pg_courses').select('name,fee_tzs').eq('id',request.course_id).maybeSingle(),
+   supabase.from('pg_course_fees').select('academic_year,study_year,amount_tzs').eq('course_id',request.course_id).eq('study_year',Number(studyYear)).order('academic_year',{ascending:false}).limit(1),
+   supabase.from('pg_heslb_disbursements').select('id,academic_year,amount_tzs,status,tuition_tzs,meals_accommodation_tzs,books_stationery_tzs,field_practical_tzs,research_tzs,other_tzs').eq('user_id',userId).eq('institution_id',request.institution_id),
+   supabase.from('pg_student_fee_credits').select('id,academic_year,amount_tzs,source,reference,confirmed_at').eq('user_id',userId).eq('institution_id',request.institution_id)
+  ]);
+  if(!mounted)return;
+  const failure=[course,fees,loans,credits].find(r=>r.error)?.error;
+  if(failure){setMessage('Unable to load financial overview: '+failure.message);return;}
+  const configured=fees.data?.[0];const base=course.data?.fee_tzs;
+  setFinance({courseName:course.data?.name||'Approved course',fee:configured?Number(configured.amount_tzs):base!=null?Number(base):null,feeSource:configured?'Configured course fee · '+configured.academic_year:'Programme catalogue reference only',loanRows:loans.data||[],credits:credits.data||[]});setMessage('');
+ }void load();return()=>{mounted=false};},[userId,studyYear]);
+ if(!finance)return <section className="pg-details"><h2>Student Financial Overview</h2><p>{message}</p></section>;
+ const totalLoan=finance.loanRows.reduce((n,r)=>n+Number(r.amount_tzs),0);
+ const totalCredit=finance.credits.reduce((n,r)=>n+Number(r.amount_tzs),0);
+ const balance=finance.fee===null?null:Math.max(0,finance.fee-totalCredit);
+ const categories:[string,keyof StudentFinance['loanRows'][number]][]=[['Tuition / Fees','tuition_tzs'],['Meals & Accommodation','meals_accommodation_tzs'],['Books & Stationery','books_stationery_tzs'],['Field / Practical','field_practical_tzs'],['Research','research_tzs'],['Other','other_tzs']];
+ const format=(n:number)=>'TZS '+n.toLocaleString('en-TZ');
+ return <section style={{margin:'20px 0',border:'1px solid #e4e9f1',borderRadius:16,padding:18}}>
+ <h2>Student Financial Overview</h2><p className="pg-note">Institution-reported HESLB amounts are not proof of disbursement. Only separately confirmed fee credits reduce your outstanding fees.</p>
+ <div className="pg-details"><p><strong>Approved course</strong><span>{finance.courseName}</span></p><p><strong>Year {studyYear} fee</strong><span>{finance.fee===null?'Not configured':format(finance.fee)}</span></p><p><strong>Fee basis</strong><span>{finance.feeSource}</span></p><p><strong>HESLB allocation reported</strong><span>{format(totalLoan)}</span></p><p><strong>Confirmed fee credits</strong><span>{format(totalCredit)}</span></p><p><strong>Remaining university fee</strong><span>{balance===null?'Awaiting official fee schedule':format(balance)}</span></p></div>
+ {finance.fee!==null&&<div style={{height:10,background:'#e9edf4',borderRadius:8,overflow:'hidden',margin:'12px 0'}} role="progressbar" aria-label="Confirmed fee payment progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={finance.fee?Math.min(100,Math.round(totalCredit/finance.fee*100)):100}><div style={{width:(finance.fee?Math.min(100,totalCredit/finance.fee*100):100)+'%',height:'100%',background:'#11845b'}}/></div>}
+ <h3>HESLB allocation distribution</h3>{finance.loanRows.length?finance.loanRows.map(r=><div key={r.id} className="pg-details"><p><strong>{r.academic_year}</strong><span>{format(r.amount_tzs)} · {r.status==='verified'?'Verified source record':'Institution reported / unverified'}</span></p>{categories.filter(([,key])=>Number(r[key]||0)>0).map(([label,key])=><p key={key}><strong>{label}</strong><span>{format(Number(r[key]||0))}</span></p>)}</div>):<p>No institution-reported HESLB allocation yet.</p>}
+ <h3>Confirmed fee payments / credits</h3>{finance.credits.length?finance.credits.map(c=><p key={c.id} className="pg-details"><strong>{c.source==='heslb_tuition_confirmed'?'HESLB tuition credit':'Institution-confirmed payment'} · {c.academic_year}</strong><span>{format(Number(c.amount_tzs))} · Ref: {c.reference}</span></p>):<p>No confirmed fee payments or credits recorded.</p>}
+ <p className="pg-note">A programme catalogue fee is indicative until the institution configures an academic-year fee. Fee balance excludes unverified payments and does not represent your wallet cash balance.</p>
+ </section>;
+}
 type StudentTab = 'home'|'merchant'|'services'|'profile';
 function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const [profile,setProfile]=useState<Profile|null>(null);
@@ -239,10 +276,10 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const tabs:[StudentTab,string,string,string][]=[['home','Home','⌂','/dashboard'],['merchant','Merchant','▣','/merchant'],['services','Services','▦','/services'],['profile','Profile','♙','/profile']];
  return <main className="pg-page pg-student-page"><section className="pg-panel">
  <img className="pg-logo pg-small" src={logo} alt="PlayGo Tanzania Limited"/><p className="pg-eyebrow">PLAYGO FINANCES · STUDENT WALLET</p>
- {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><HomeLoanStatus account={account}/></>:<p>Loading your PlayGo account…</p>}</>}
+ {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><HomeLoanStatus account={account}/><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account}/>:<p>Loading account…</p>)}
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution}/>:<p>Loading account…</p>)}
- {tab==='profile'&&<><h1>My Profile</h1><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Check your institution request status below</span></p></div><Link className="pg-button pg-outline" to="/institution-request">Submit / Track Institution Verification →</Link><section style={{margin:'22px 0',border:'1px solid #e5e5e5',borderRadius:16,padding:16}}>
+ {tab==='profile'&&<><h1>My Profile</h1><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Check your institution request status below</span></p></div><Link className="pg-button pg-outline" to="/institution-request">Submit / Track Institution Verification →</Link><section style={{margin:'22px 0',border:'1px solid #e5e5e5',borderRadius:16,padding:16}}>
  <h2 style={{marginTop:0}}>Course Admitted & Fees</h2>
  <p className="pg-note">Course selection is student-declared, not yet verified by the university.</p>
  {institution.toLowerCase().includes('ruaha catholic')?

@@ -127,26 +127,45 @@ function RegistrationSuccess({ session }: { session: Session }) {
     void verify();
     return () => { active = false; };
   }, [session.user.id, attempt]);
-  return <Frame><div style={{textAlign:'center',padding:'18px 0'}} aria-live="polite">
-    <p className="pg-eyebrow">REGISTRATION VERIFICATION · STEP 3 OF 3</p>
-    <h1>{failure ? 'Registration check failed' : running ? 'Checking your registration…' : 'Registration verified!'}</h1>
-    <div role="progressbar" aria-label="Registration verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{height:16,borderRadius:12,background:'#eeeeee',overflow:'hidden',margin:'20px 0 8px'}}>
-      <div style={{height:'100%',width:progress+'%',background:failure?'#d32f2f':'#d32f2f',transition:'width .35s ease'}}/>
+  const checks = [
+    { title: 'OTP demonstration', detail: 'Demo only · SMS not verified', passed: true, failed: false },
+    { title: 'Authentication session', detail: 'Secure session validation', passed: progress >= 50, failed: !!failure && progress === 25 },
+    { title: 'Student profile', detail: 'Profile record and student name', passed: progress >= 75, failed: !!failure && progress === 50 },
+    { title: 'PlayGo account number', detail: 'Unique 10-digit number starting 09', passed: progress === 100, failed: !!failure && progress === 75 }
+  ];
+  return <Frame><section aria-live="polite" style={{width:'100%',maxWidth:520,margin:'0 auto',padding:'12px 0 18px',minWidth:0}}>
+    <p className="pg-eyebrow" style={{fontSize:11,letterSpacing:1.5,textAlign:'center',marginBottom:12}}>REGISTRATION VERIFICATION · STEP 3 OF 3</p>
+    <div style={{textAlign:'center',marginBottom:22}}>
+      <div aria-hidden="true" style={{width:56,height:56,borderRadius:'50%',margin:'0 auto 12px',display:'grid',placeItems:'center',background:failure?'#fff1f1':running?'#fff4f4':'#e9f8ee',color:failure?'#b91c1c':running?'#c93333':'#15803d',fontSize:28,fontWeight:700}}>{failure?'!':running?'…':'✓'}</div>
+      <h1 style={{fontSize:'clamp(23px,6vw,30px)',lineHeight:1.18,margin:'0 0 8px'}}>{failure?'Verification stopped':running?'Checking registration':'Registration successful!'}</h1>
+      <p style={{fontSize:14,color:'#666',margin:0}}>{failure?'A check needs attention before you continue.':running?'Validating your student account details.':'Your PlayGo account is ready.'}</p>
     </div>
-    <p style={{fontSize:22,fontWeight:700}}>{progress}%</p>
-    <p>{failure ? 'Verification stopped at the failed check.' : step}</p>
-    <div className="pg-details">
-      <p><strong>{progress >= 25 ? '✓' : '○'} OTP demonstration</strong><span>Demo only · not SMS verified</span></p>
-      <p><strong>{progress >= 50 ? '✓' : failure ? '✕' : '○'} Authentication session</strong><span>{progress >= 50 ? 'Passed' : failure ? 'Failed' : 'Checking'}</span></p>
-      <p><strong>{progress >= 75 ? '✓' : failure && progress === 50 ? '✕' : '○'} Student profile</strong><span>{progress >= 75 ? 'Passed' : failure && progress === 50 ? 'Failed' : 'Pending'}</span></p>
-      <p><strong>{progress === 100 ? '✓' : failure && progress === 75 ? '✕' : '○'} Account number</strong><span>{progress === 100 ? 'Verified' : failure && progress === 75 ? 'Failed' : 'Pending'}</span></p>
+    <div style={{background:'#fafafa',border:'1px solid #e8e8e8',borderRadius:16,padding:16,marginBottom:18}}>
+      <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:12,marginBottom:10}}>
+        <strong style={{fontSize:14}}>Verification progress</strong><strong style={{fontSize:20,color:failure?'#b91c1c':'#c93333'}}>{progress}%</strong>
+      </div>
+      <div role="progressbar" aria-label="Registration verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{height:9,borderRadius:9,background:'#e7e7e7',overflow:'hidden'}}>
+        <div style={{height:'100%',width:progress+'%',background:failure?'#b91c1c':'#c93333',borderRadius:9,transition:'width .4s ease'}}/>
+      </div>
+      <p style={{fontSize:12,color:'#666',margin:'10px 0 0'}}>{failure?'Stopped at failed check':step}</p>
     </div>
-    {failure && <p className="pg-error" role="alert">{failure}</p>}
-    {account && <div className="pg-details"><p><strong>Verified PlayGo Account Number</strong><span style={{fontSize:24,fontWeight:700,letterSpacing:2}}>{account}</span></p></div>}
+    <div style={{border:'1px solid #e8e8e8',borderRadius:16,overflow:'hidden',marginBottom:18}}>
+      {checks.map((check,index)=><div key={check.title} style={{display:'flex',alignItems:'center',gap:12,padding:'14px 12px',borderBottom:index===checks.length-1?'none':'1px solid #eee'}}>
+        <span aria-hidden="true" style={{flex:'0 0 30px',width:30,height:30,borderRadius:'50%',background:check.failed?'#fee2e2':check.passed?'#dcfce7':'#f1f1f1',color:check.failed?'#b91c1c':check.passed?'#15803d':'#777',display:'grid',placeItems:'center',fontWeight:700,fontSize:15}}>{check.failed?'×':check.passed?'✓':index+1}</span>
+        <div style={{flex:1,minWidth:0}}><strong style={{display:'block',fontSize:13,lineHeight:1.35}}>{check.title}</strong><span style={{display:'block',fontSize:11,color:'#777',lineHeight:1.4,marginTop:2}}>{check.detail}</span></div>
+        <span style={{flexShrink:0,fontSize:11,fontWeight:700,color:check.failed?'#b91c1c':check.passed?'#15803d':'#888'}}>{check.failed?'Failed':check.passed?'Passed':'Pending'}</span>
+      </div>)}
+    </div>
+    {failure && <p className="pg-error" role="alert" style={{fontSize:13,overflowWrap:'anywhere'}}>{failure}</p>}
+    {account && !failure && <div style={{background:'#fff7f7',border:'1px solid #f2cccc',borderRadius:16,padding:'16px 12px',textAlign:'center',marginBottom:18,minWidth:0}}>
+      <p style={{fontSize:11,fontWeight:700,letterSpacing:1,color:'#666',margin:'0 0 8px'}}>YOUR PLAYGO ACCOUNT NUMBER</p>
+      <strong style={{display:'block',fontSize:'clamp(20px,5.4vw,26px)',lineHeight:1.25,letterSpacing:'1px',fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',color:'#171717'}}>{account}</strong>
+      <p style={{fontSize:11,color:'#666',margin:'8px 0 0'}}>Account generated and verified</p>
+    </div>}
     {failure && <button type="button" className="pg-button pg-outline" onClick={()=>setAttempt(n=>n+1)}>Retry verification</button>}
     {!running && !failure && <Link className="pg-button" to="/dashboard">Continue to Dashboard →</Link>}
-    <p className="pg-note">Checks reflect actual Supabase responses. Institution enrollment and phone ownership are not yet verified. Real payments are disabled.</p>
-  </div></Frame>;
+    <p className="pg-note" style={{fontSize:11,lineHeight:1.5,textAlign:'center',marginTop:18}}>University enrollment and mobile ownership are not yet independently verified. Real payments remain disabled.</p>
+  </section></Frame>;
 }
 function Dashboard({ session }: { session: Session }) {
   const [profile, setProfile] = useState<Profile | null>(null);

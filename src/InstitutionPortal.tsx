@@ -43,10 +43,9 @@ const navItems:{id:Section;label:string;icon:string}[]=[
  {id:'payments',label:'Payments',icon:'▤'},
  {id:'profile',label:'Institution Profile',icon:'⚙'}
 ];
-const shell:React.CSSProperties={display:'flex',minHeight:'100vh',background:'#f5f7fb',color:'#19253b',fontFamily:'Inter,system-ui,sans-serif'};
-const card:React.CSSProperties={background:'#fff',border:'1px solid #e4eaf2',borderRadius:14,padding:22,boxShadow:'0 2px 12px #172a4610'};
-const action:React.CSSProperties={background:'#162d4b',color:'white',border:0,borderRadius:8,padding:'10px 16px',cursor:'pointer',fontWeight:600};
-const muted:React.CSSProperties={color:'#68778e',fontSize:14};
+const card:React.CSSProperties={background:'#fff',border:'1px solid #e8ecf2',borderRadius:14,padding:24,boxShadow:'0 4px 20px #15243a05'};
+const action:React.CSSProperties={background:'#e32235',color:'white',border:0,borderRadius:9,padding:'12px 18px',cursor:'pointer',fontWeight:700};
+const muted:React.CSSProperties={color:'#7c8795',fontSize:13};
 export default function InstitutionPortal({supabase,session}:{supabase:SupabaseClient;session:Session}){
  const navigate=useNavigate();
  const [section,setSection]=useState<Section>('dashboard');
@@ -62,7 +61,6 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
  const [busyId,setBusyId]=useState('');
  const [search,setSearch]=useState('');
  const [filter,setFilter]=useState('all');
- const [mobileMenu,setMobileMenu]=useState(false);
  const institutionId=String(session.user.app_metadata?.institution_id||'');
  const allowed=isInstitutionAdmin(session);
  async function refresh(){
@@ -109,20 +107,16 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
  });
  const totalFees=installments.reduce((sum,i)=>sum+Number(i.amount_tzs||0),0);
  const heading=navItems.find(n=>n.id===section)?.label||'Dashboard';
- return <div style={shell}>
-  <aside style={{width:250,flexShrink:0,background:'#142a46',color:'#fff',padding:'28px 16px',display:'flex',flexDirection:'column',gap:24,minHeight:'100vh'}}>
-   <div style={{padding:'4px 12px'}}><strong style={{fontSize:24,letterSpacing:1}}>PLAYGO</strong><div style={{fontSize:11,letterSpacing:2,opacity:.7,marginTop:6}}>INSTITUTION PORTAL</div></div>
-   <div style={{padding:'14px 12px',background:'#ffffff12',borderRadius:10}}><strong style={{fontSize:13}}>{institution?.name||'Institution'}</strong><div style={{fontSize:12,opacity:.7,marginTop:5}}>Administrator Workspace</div></div>
-   <nav aria-label="Institution navigation" style={{display:'flex',flexDirection:'column',gap:7}}>
-    {navItems.map(item=><button key={item.id} type="button" onClick={()=>{setSection(item.id);setMobileMenu(false);setNotice('');}} style={{display:'flex',alignItems:'center',gap:12,width:'100%',padding:'13px 14px',border:0,borderRadius:9,textAlign:'left',cursor:'pointer',fontSize:14,fontWeight:section===item.id?700:500,background:section===item.id?'#ffffff24':'transparent',color:'#fff'}}><span aria-hidden="true" style={{fontSize:19}}>{item.icon}</span>{item.label}</button>)}
-   </nav>
-   <div style={{marginTop:'auto',padding:'0 12px'}}><button type="button" onClick={logout} style={{...action,width:'100%',background:'#ffffff1b',border:'1px solid #ffffff30'}}>Sign out</button></div>
+ return <div className="pga-app">
+  <aside className="pga-side">
+   <div className="pga-brand"><span>Play<b>Go</b></span><small>INSTITUTION CONSOLE</small></div>
+   <p className="pga-nav-title">WORKSPACE</p>
+   <nav aria-label="Institution navigation">{navItems.map(item=><button key={item.id} type="button" className={section===item.id?'active':''} onClick={()=>{setSection(item.id);setNotice('');}}><span aria-hidden="true">{item.icon}</span>{item.label}</button>)}</nav>
+   <div className="pga-side-bottom"><span className="pga-dot"/> Demo finance environment <button type="button" className="pga-institution-signout" onClick={()=>void logout()}>Sign out ↗</button></div>
   </aside>
-  <main style={{flex:1,minWidth:0,padding:'28px clamp(16px,3vw,44px) 60px'}}>
-   <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:28,flexWrap:'wrap'}}>
-    <div><div style={{...muted,marginBottom:5}}>Institution Workspace / {heading}</div><h1 style={{fontSize:27,margin:0}}>{heading}</h1></div>
-    <div style={{...card,padding:'10px 16px',fontSize:13}}><strong>{institution?.name||'Loading…'}</strong><div style={muted}>{session.user.email}</div></div>
-   </header>
+  <div className="pga-main">
+   <header className="pga-top"><div><span className="pga-crumb">PlayGo / Institution / {heading}</span><h1>{heading}</h1></div><div className="pga-user"><span className="pga-avatar">{(institution?.name||'I').charAt(0)}</span><div><b>{institution?.name||'Institution Administrator'}</b><small>{session.user.email}</small></div></div></header>
+   <div className="pga-body">
    {loading?<div style={card}>Loading institution data…</div>:error?<div role="alert" style={{...card,color:'#b42318'}}>{error}<p><button style={action} onClick={()=>{setError('');setLoading(true);void refresh().catch(e=>setError(String(e))).finally(()=>setLoading(false));}}>Retry</button></p></div>:institution&&<>
     {notice&&<p role="status" style={{...card,borderColor:'#bbd7f2'}}>{notice}</p>}
     {section==='dashboard'&&<>
@@ -138,7 +132,7 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
     {section==='students'&&<section style={card}>
      <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{margin:'0 0 6px'}}>Registered Students</h2><p style={muted}>Only enrollments linked to {institution.name} appear here.</p></div><strong>{visible.length} records</strong></div>
      <div style={{display:'flex',gap:10,flexWrap:'wrap',margin:'20px 0'}}><input aria-label="Search students" placeholder="Search name or admission number" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 230px',padding:11,border:'1px solid #d7deeb',borderRadius:8}}/><select aria-label="Filter enrollment status" value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:11,border:'1px solid #d7deeb',borderRadius:8}}><option value="all">All students</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-     <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:590}}><thead><tr style={{textAlign:'left',background:'#f5f7fb'}}>{['Student','Admission Number','Enrollment Status','Action'].map(h=><th key={h} style={{padding:14}}>{h}</th>)}</tr></thead><tbody>{visible.map(e=><tr key={e.id} style={{borderTop:'1px solid #e9edf3'}}><td style={{padding:14,fontWeight:600}}>{names.get(e.user_id)||'Name unavailable'}</td><td style={{padding:14}}>{e.admission_number}</td><td style={{padding:14,color:e.active?'#087647':'#9a6700'}}>{e.active?'Active':'Inactive'}</td><td style={{padding:14}}><button type="button" disabled={busyId===e.id} onClick={()=>void changeStatus(e)} style={{...action,padding:'8px 12px',background:e.active?'#59687d':'#087647'}}>{busyId===e.id?'Saving…':e.active?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table>{!visible.length&&<p style={muted}>No matching student enrollments.</p>}</div>
+     <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:590}}><thead><tr style={{textAlign:'left',background:'#f5f7fb'}}>{['Student','Admission Number','Enrollment Status','Action'].map(h=><th key={h} style={{padding:14}}>{h}</th>)}</tr></thead><tbody>{visible.map(e=><tr key={e.id} style={{borderTop:'1px solid #e9edf3'}}><td style={{padding:14,fontWeight:600}}>{names.get(e.user_id)||'Name unavailable'}</td><td style={{padding:14}}>{e.admission_number}</td><td style={{padding:14,color:e.active?'#087647':'#9a6700'}}>{e.active?'Active':'Inactive'}</td><td style={{padding:14}}><button type="button" disabled={busyId===e.id} onClick={()=>void changeStatus(e)} style={{...action,padding:'8px 12px',background:e.active?'#667386':'#e32235'}}>{busyId===e.id?'Saving…':e.active?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table>{!visible.length&&<p style={muted}>No matching student enrollments.</p>}</div>
     </section>}
     {section==='payments'&&<div style={{display:'grid',gap:20}}>
      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:14}}><div style={card}><div style={muted}>Scheduled Fees</div><strong style={{fontSize:23}}>{money(totalFees)}</strong></div><div style={card}><div style={muted}>Fee Installments</div><strong style={{fontSize:28}}>{installments.length}</strong></div><div style={card}><div style={muted}>Recent Demo Transactions</div><strong style={{fontSize:28}}>{transactions.length}</strong></div></div>
@@ -151,6 +145,7 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
      <section style={card}><h2>Administrator Account</h2><p><strong>Username</strong><br/>{institution.admin_username||'Not provided'}</p><p><strong>Login email</strong><br/>{session.user.email}</p><p><strong>Access role</strong><br/>Institution Administrator</p><button type="button" style={action} onClick={async()=>{if(!session.user.email)return;const {error:e}=await supabase.auth.resetPasswordForEmail(session.user.email,{redirectTo:window.location.origin+'/institution/login'});setNotice(e?'Password reset failed: '+e.message:'Password reset instructions sent if the email is eligible.');}}>Request Password Reset Email</button><p style={muted}>Password reset requires a configured Supabase email service and redirect URL.</p></section>
     </div>}
    </>}
-  </main>
+   </div>
+  </div>
  </div>;
 }

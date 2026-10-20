@@ -151,3 +151,5 @@
 .pg-merchant-upload input{position:absolute;width:1px;height:1px;opacity:0}
 .pg-merchant-upload:focus-within{outline:2px solid #e7192e;outline-offset:2px}
 .pg-merchant-methods button:focus-visible{outline:2px solid #e7192e;outline-offset:2px}
+
+.pg-receipt-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.pg-receipt-actions .pg-button{min-height:54px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;font-weight:750;padding:12px}@media(max-width:580px){.pg-receipt-actions{grid-template-columns:1fr}}

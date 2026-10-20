@@ -121,3 +121,15 @@
 .pg-support-status{display:flex;align-items:center;gap:12px;margin:12px 0}
 .pg-support-status select{min-height:38px;padding:7px 12px;border:1px solid #d8dfe8;border-radius:8px}
 @media(max-width:720px){.pg-support-layout{grid-template-columns:1fr}.pg-support-tickets{max-height:260px}}
+
+/* Linked bank: compact account controls */
+.pg-bank-connected{display:inline-flex;align-items:center;gap:7px;border:1px solid #6ccda4;background:#245d49;border-radius:30px;padding:6px 10px;font-size:11px;font-weight:800;letter-spacing:.5px;white-space:nowrap;color:#e4fff1}
+.pg-bank-connected span{color:#62ec9d;font-size:11px}
+.pg-bank-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:18px}
+.pg-bank-action{min-height:48px;display:inline-flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:11px 14px;cursor:pointer;font:inherit;font-size:14px;font-weight:750;transition:background .15s,border-color .15s}
+.pg-bank-action-primary{background:#e7192e;border:1px solid #e7192e;color:white}
+.pg-bank-action-primary:hover{background:#bc1223}
+.pg-bank-action-danger{background:white;border:1px solid #e1d6d8;color:#9e2936}
+.pg-bank-action-danger:hover{background:#fff0f2;border-color:#d78b96}
+.pg-bank-action:focus-visible{outline:3px solid #ed8995;outline-offset:2px}
+@media(max-width:500px){.pg-bank-card-actions{grid-template-columns:1fr}}

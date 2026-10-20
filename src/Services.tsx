@@ -156,7 +156,19 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
     if(profile.error||wallet.error||ledger.error)throw new Error(profile.error?.message||wallet.error?.message||ledger.error?.message||'Statement unavailable');
     if(!wallet.data)throw new Error('Wallet account not found.');
     if((ledger.data||[]).length>5000)throw new Error('More than 5,000 transactions found; a complete statement requires additional pagination.');
-    downloadAccountStatementPdf(account,profile.data?.full_name||'Student',(ledger.data||[]) as StatementTransaction[],Number(wallet.data.balance_tzs),from,to);
+    const {data:approvals,error:approvalError}=await supabase.from('pg_student_requests').select('institution_id,course_id,admission_number').eq('user_id',userId).eq('status','approved').not('course_id','is',null).limit(1);
+    if(approvalError)throw new Error(approvalError.message);
+    const approved=approvals?.[0];let institution='Not linked',course='Not linked',admission='Not available';
+    if(approved){
+     admission=approved.admission_number||admission;
+     const [inst,programme]=await Promise.all([
+      supabase.from('pg_institutions').select('name').eq('id',approved.institution_id).maybeSingle(),
+      supabase.from('pg_courses').select('name').eq('id',approved.course_id).maybeSingle()
+     ]);
+     if(inst.error||programme.error)throw new Error(inst.error?.message||programme.error?.message||'Unable to load academic details.');
+     institution=inst.data?.name||institution;course=programme.data?.name||course;
+    }
+    downloadAccountStatementPdf(account,profile.data?.full_name||'Student',(ledger.data||[]) as StatementTransaction[],Number(wallet.data.balance_tzs),from,to,institution,course,admission);
    }catch(error){setStatementError(error instanceof Error?error.message:'Unable to generate statement.');}
    finally{setStatementBusy(false);}
   }

@@ -14,6 +14,8 @@ export const DEMO_MERCHANTS = [
 export function MerchantPage({ account, userId, supabase }: { account: string; userId: string; supabase: SupabaseClient }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [operator,setOperator]=useState('PlayGo');
+  const [scanOpen,setScanOpen]=useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
@@ -30,6 +32,7 @@ export function MerchantPage({ account, userId, supabase }: { account: string; u
   const fee=Number.isSafeInteger(value)&&value>0?Math.ceil(value/100):0;
   const total=value+fee;
   function selectMerchant(id: string) { setSelected(id); setReview(false); setError(''); setAmount(''); setReference('');setChallenge(null);setOtp(''); }
+  function lookupMerchant(e:FormEvent){e.preventDefault();const found=operator==='PlayGo'?DEMO_MERCHANTS.find(m=>m.id===search.trim().toUpperCase()):undefined;if(found){selectMerchant(found.id);setError('')}else{setSelected(null);setError('Merchant not found. Check operator and ID.')}}
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!merchant || !Number.isSafeInteger(value) || value < 1 || value > 5000000) { setError('Enter a valid whole-number amount in TZS.'); return; }
@@ -49,13 +52,9 @@ export function MerchantPage({ account, userId, supabase }: { account: string; u
     
     <div className="pg-merchant-balance"><span>Available wallet balance</span><strong>TZS {balance===null?'Loading…':balance.toLocaleString('en-TZ')}</strong></div>
     {!review ? <>
-      <label className="pg-merchant-label" htmlFor="merchant-search">Find a merchant</label>
-      <input className="pg-merchant-search" id="merchant-search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, category or merchant ID" />
-      <div className="pg-merchant-list" role="group" aria-label="Merchants">
-        {matches.length ? matches.map(m => <button key={m.id} type="button" onClick={() => selectMerchant(m.id)} className={'pg-merchant-option' + (selected === m.id ? ' pg-merchant-selected' : '')} aria-pressed={selected === m.id}>
-          <span className="pg-merchant-avatar">{m.initials}</span><span className="pg-merchant-meta"><strong>{m.name}</strong><small>{m.category} · {m.id}</small></span><span aria-hidden="true">{selected === m.id ? '✓' : '›'}</span>
-        </button>) : <p className="pg-note">No matching merchants.</p>}
-      </div>
+      <div className="pg-merchant-discovery"><div className="pg-merchant-methods"><button type="button" onClick={()=>setScanOpen(v=>!v)}>▣ Scan QR</button><button type="button" onClick={()=>setScanOpen(false)}>⌕ Merchant ID</button></div>
+      {scanOpen?<MerchantQrScanner onScan={id=>{setScanOpen(false);setOperator('PlayGo');const code=id.match(/PGM[0-9]{4}/i)?.[0]?.toUpperCase()||id.trim().toUpperCase();setSearch(code);const found=DEMO_MERCHANTS.find(m=>m.id===code);if(found){selectMerchant(found.id)}else{setSelected(null);setError('Merchant not found.')}}} onClose={()=>setScanOpen(false)}/>:<form className="pg-form" onSubmit={lookupMerchant}><label htmlFor="merchant-operator">Select operator</label><select id="merchant-operator" value={operator} onChange={e=>{setOperator(e.target.value);setSelected(null)}}><option value="PlayGo">PlayGo Merchant</option><option value="M-Pesa">M-Pesa</option><option value="Mixx">Mixx by Yas</option><option value="Airtel Money">Airtel Money</option><option value="HaloPesa">HaloPesa</option></select><label htmlFor="merchant-search">Merchant ID</label><input id="merchant-search" value={search} onChange={e=>{setSearch(e.target.value);setSelected(null)}} placeholder="PGM1002" required/><button type="submit" className="pg-button">Search Merchant →</button></form>}
+      {merchant&&<div className="pg-merchant-verified"><span className="pg-merchant-avatar">{merchant.initials}</span><div><strong>{merchant.name}</strong><small>{merchant.id} · {merchant.category}</small><span>✓ Merchant found</span></div></div>}</div>
       {merchant && <form className="pg-form" onSubmit={submit}>
         <h2 className="pg-merchant-subtitle">Payment details</h2>
         <p>Paying <b>{merchant.name}</b> ({merchant.id})</p>

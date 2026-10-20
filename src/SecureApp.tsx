@@ -352,6 +352,8 @@ function FeeInformation({session}:{session:Session}) {
  <p><strong>Course Fee</strong><span>TZS {f.amount.toLocaleString('en-TZ')}</span></p>
  <p><strong>Confirmed Fee Credits</strong><span>TZS {f.confirmed.toLocaleString('en-TZ')}</span></p>
  <p><strong>Remaining Fee Balance</strong><span>TZS {Math.max(0,f.amount-f.confirmed).toLocaleString('en-TZ')}</span></p>
+ <button type="button" className="pg-button" disabled aria-disabled="true" title="Online fee payments are pending banking authorization" style={{width:'100%',margin:'16px 0',opacity:.65,cursor:'not-allowed'}}>Pay Fee · Coming Soon</button>
+ <p className="pg-note" role="status">Online fee payment is currently unavailable. No wallet debit or payment request will be initiated.</p>
  <p className="pg-note">Fee credits are confirmed by the institution. HESLB loan allocations alone do not count as paid tuition.</p>
  </section>)}
  <p className="pg-note">Payments are disabled. Use only official institution payment channels until PlayGo banking integration is approved.</p></Frame>;

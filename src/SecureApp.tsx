@@ -286,7 +286,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  <img className="pg-logo pg-small" src={logo} alt="PlayGo Tanzania Limited"/><p className="pg-eyebrow">PLAYGO FINANCES · STUDENT WALLET</p>
  {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><HomeLoanStatus account={account}/><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
- {tab==='services'&&(account?<ServicesPage account={account} institution={institution}/>:<p>Loading account…</p>)}
+ {tab==='services'&&(account?<ServicesPage account={account} institution={institution} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
  {tab==='profile'&&<div className="pg-profile-redesign">
  <header className="pg-profile-heading"><div className="pg-profile-avatar" aria-hidden="true">{(profile?.full_name||'S').trim().charAt(0).toUpperCase()}</div><div><p className="pg-eyebrow">STUDENT ACCOUNT</p><h1>My Profile</h1><p>{profile?.full_name||'Student'}</p></div></header>
  <section className="pg-profile-card"><div className="pg-profile-card-heading"><h2>Personal & Account Details</h2><span className="pg-profile-pill">{courseApprovalStatus==='approved'?'Verified student':courseApprovalStatus==='loading'?'Checking status':'Verification pending'}</span></div>

@@ -77,3 +77,25 @@
 .pg-statement-dates>div{display:grid;gap:8px;min-width:0}
 .pg-statement-card>.pg-button{margin:0;min-height:50px;border-radius:12px}
 @media(max-width:500px){.pg-statement-dates{grid-template-columns:1fr}}
+
+/* Notification center and receipt actions */
+.pg-notification-entry{display:flex;justify-content:flex-end;margin:4px 0 16px}
+.pg-notification-entry a{display:inline-flex;align-items:center;gap:8px;color:#dc192a;text-decoration:none;font-size:13px;font-weight:750;border:1px solid #f2ccd0;padding:10px 14px;border-radius:12px;background:#fff7f8}
+.pg-notify-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;margin:24px 0}
+.pg-notify-heading h1{margin:7px 0}.pg-notify-heading p:last-child{color:#687385;margin:0}
+.pg-notify-count{border-radius:30px;background:#f7e9eb;color:#d7192c;padding:9px 12px;font-size:12px;font-weight:700;white-space:nowrap}
+.pg-notify-list{display:grid;gap:13px}
+.pg-notify-item{border:1px solid #e1e5eb;border-radius:17px;padding:20px;background:#fff;box-shadow:0 3px 12px #15203308}
+.pg-notify-item-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.pg-notify-item-head>div{display:grid;gap:7px}
+.pg-notify-item-head strong{font-size:16px}
+.pg-notify-item small{color:#7a8390;font-size:12px;overflow-wrap:anywhere}
+.pg-notify-item>p{color:#555f6c;font-size:14px;overflow-wrap:anywhere;margin:14px 0 8px}
+.pg-notify-debit{color:#ce2533}.pg-notify-credit{color:#16804d}
+.pg-notify-item-head b{font-size:14px;white-space:nowrap}
+.pg-notify-actions{display:flex;flex-wrap:wrap;gap:10px;margin:17px 0}
+.pg-notify-actions button{cursor:pointer;border:1px solid #e51a2b;background:#e51a2b;color:#fff;border-radius:10px;padding:11px 15px;font:inherit;font-size:13px;font-weight:700}
+.pg-notify-actions button+button{background:#fff;color:#d7192c}
+.pg-receipt-prompt{border:1px solid #a9dcc0!important;background:#f5fcf8!important;padding:22px!important;border-radius:17px!important}
+.pg-receipt-prompt h2{margin-top:0}
+@media(max-width:500px){.pg-notify-heading{flex-direction:column}.pg-notify-item-head{flex-direction:column}.pg-notify-actions{display:grid}.pg-notify-actions button{width:100%}}

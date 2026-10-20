@@ -196,7 +196,7 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
 }
 
 
-type SupportInquiry={id:string;user_id:string;destination:'platform'|'institution';institution_id:string|null;category:string;subject:string;status:string;created_at:string;updated_at:string};
+type SupportInquiry={id:string;user_id:string;destination:'platform'|'institution';institution_id:string|null;category:string;subject:string;status:string;created_at:string;updated_at:string;transaction_id:string|null;transaction_date:string|null;transaction_type:string|null};
 type SupportMessage={id:string;inquiry_id:string;sender_id:string;body:string;created_at:string};
 export function SupportInbox({supabase,userId,role,institutionId}:{supabase:SupabaseClient;userId:string;role:'student'|'admin'|'institution';institutionId?:string}){
  const [tickets,setTickets]=useState<SupportInquiry[]>([]),[messages,setMessages]=useState<SupportMessage[]>([]);
@@ -204,7 +204,7 @@ export function SupportInbox({supabase,userId,role,institutionId}:{supabase:Supa
  const [selected,setSelected]=useState(''),[destination,setDestination]=useState('platform'),[linkedInstitution,setLinkedInstitution]=useState(''),[institutions,setInstitutions]=useState<{id:string;name:string}[]>([]);
  const [category,setCategory]=useState(options[0]),[subject,setSubject]=useState(options[0]),[body,setBody]=useState(''),[reply,setReply]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
  async function refresh(){
-  const query=supabase.from('pg_support_inquiries').select('id,user_id,destination,institution_id,category,subject,status,created_at,updated_at').order('created_at',{ascending:false}).limit(200);
+  const query=supabase.from('pg_support_inquiries').select('id,user_id,destination,institution_id,category,subject,status,created_at,updated_at,transaction_id,transaction_date,transaction_type').order('created_at',{ascending:false}).limit(200);
   const result=await (role==='student'?query.eq('user_id',userId):role==='admin'?query.eq('destination','platform'):query.eq('institution_id',institutionId||''));
   if(result.error)throw result.error;
   setTickets(result.data||[]);
@@ -241,7 +241,7 @@ export function SupportInbox({supabase,userId,role,institutionId}:{supabase:Supa
  {error&&<p className="pg-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
  <h3>{role==='student'?'My Inquiries':'Incoming Inquiries'}</h3>
  {loading?<p>Loading inquiries…</p>:!tickets.length?<p>No inquiries yet.</p>:<div className="pg-support-layout"><div className="pg-support-tickets">{tickets.map(t=><button key={t.id} type="button" className={selected===t.id?'pg-support-ticket active':'pg-support-ticket'} onClick={()=>setSelected(t.id)}><strong>{t.subject}</strong><small>{t.category} · {new Date(t.created_at).toLocaleDateString('en-GB')}</small><span>{t.status.replace('_',' ')}</span><small>#{t.id.slice(0,8)}</small></button>)}</div>
- <div className="pg-support-thread">{current?<><h3>{current.subject}</h3><p className="pg-note">{current.category} · {current.destination==='platform'?'PlayGo Support':'Institution Support'} · {current.status.replace('_',' ')}</p>
+ <div className="pg-support-thread">{current?<><h3>{current.subject}</h3><p className="pg-note">{current.category} · {current.destination==='platform'?'PlayGo Support':'Institution Support'} · {current.status.replace('_',' ')}</p>{current.transaction_id&&<div className="pg-details"><p><strong>Transaction ID</strong><span>{current.transaction_id}</span></p><p><strong>Transaction Date</strong><span>{current.transaction_date?new Date(current.transaction_date).toLocaleString('en-GB'):'-'}</span></p><p><strong>Transaction Type</strong><span>{current.transaction_type?.replace(/_/g,' ')}</span></p></div>}
  <div className="pg-support-messages">{messages.filter(m=>m.inquiry_id===current.id).map(m=><div key={m.id} className={m.sender_id===userId?'pg-support-message mine':'pg-support-message'}><strong>{m.sender_id===current.user_id?'Student':current.destination==='platform'?'PlayGo Support':'Institution Support'}</strong><p>{m.body}</p><small>{new Date(m.created_at).toLocaleString('en-GB')}</small></div>)}</div>
  {role!=='student'&&<div className="pg-support-status"><label htmlFor="support-status">Status</label><select id="support-status" value={current.status} disabled={busy} onChange={e=>void changeStatus(e.target.value)}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>}
  {current.status!=='closed'&&<form className="pg-form" onSubmit={e=>void sendReply(e)}><label htmlFor="support-reply">Reply</label><textarea id="support-reply" rows={3} required maxLength={2000} value={reply} onChange={e=>setReply(e.target.value)}/><button className="pg-button" type="submit" disabled={busy||!reply.trim()}>Send Reply</button></form>}</>:<p>Select an inquiry to view the conversation.</p>}</div></div>}

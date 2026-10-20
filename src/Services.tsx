@@ -1,3 +1,4 @@
+import { downloadAccountStatementPdf, type StatementTransaction } from './StatementPdf';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -9,21 +10,6 @@ const options = ['Fee payment inquiry', 'Transaction inquiry', 'Account assistan
 function readRequests(): Request[] {
   try { const data: unknown = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(data) ? data as Request[] : []; }
   catch { return []; }
-}
-function csvCell(value: unknown): string {
-  const text = String(value ?? '');
-  const safe = /^[\s]*[=+@\-\t\r]/.test(text) ? "'" + text : text;
-  return '"' + safe.replace(/"/g, '""') + '"';
-}
-function downloadStatement(account: string) {
-  const txs = walletInfo(account).transactions;
-  const header = ['Reference','Date','Type','Amount TZS','From','To','Note'];
-  const rows = txs.map(t => [t.id, t.at, t.kind, t.amount, t.from, t.to, t.note]);
-  const csv = [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
-  const blob = new Blob(['\uFEFF',csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `playgo-demo-statement-${account}.csv`;
-  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
 export function GovernmentStudentLoan(){
  return <section className="pg-feature-card" id="government-loan">
@@ -117,6 +103,8 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
   const [details, setDetails] = useState('');
   const [requests, setRequests] = useState(() => readRequests().filter(r => r.account === account));
   const [message, setMessage] = useState('');
+  const [statementBusy,setStatementBusy]=useState(false);
+  const [statementError,setStatementError]=useState('');
   const data = walletInfo(account);
   const [fee,setFee]=useState<{total:number;paid:number;year:string;course:string}|null>(null);
   const [feeLoading,setFeeLoading]=useState(true);
@@ -147,6 +135,21 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
   const outstanding=fee?Math.max(0,fee.total-fee.paid):null;
   const percent=fee&&fee.total>0?Math.min(100,Math.round(fee.paid/fee.total*100)):0;
   const money = (n: number) => 'TZS ' + n.toLocaleString('en-TZ');
+  async function downloadStatement(){
+    setStatementBusy(true);setStatementError('');
+    try{
+     const [profile,wallet,ledger]=await Promise.all([
+      supabase.from('pg_profiles').select('full_name').eq('user_id',userId).maybeSingle(),
+      supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle(),
+      supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,delta_tzs,note,created_at').eq('user_id',userId).order('created_at',{ascending:true}).limit(5000)
+     ]);
+     if(profile.error||wallet.error||ledger.error)throw new Error(profile.error?.message||wallet.error?.message||ledger.error?.message||'Statement unavailable');
+     if(!wallet.data)throw new Error('Wallet account not found.');
+     if((ledger.data||[]).length===5000)throw new Error('Statement exceeds 5,000 entries; request a shorter statement period.');
+     downloadAccountStatementPdf(account,profile.data?.full_name||'Student',(ledger.data||[]) as StatementTransaction[],Number(wallet.data.balance_tzs));
+    }catch(error){setStatementError(error instanceof Error?error.message:'Unable to generate statement.');}
+    finally{setStatementBusy(false);}
+  }
   function submitRequest(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (details.trim().length < 10 || details.trim().length > 500) { setMessage('Enter a description between 10 and 500 characters.'); return; }
@@ -180,7 +183,7 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
     <section className="pg-feature-card">
       <div className="pg-services-heading"><h2>Account Statement</h2><span>{data.transactions.length} records</span></div>
       
-      <button className="pg-button pg-outline" type="button" onClick={() => downloadStatement(account)}>Download Demo Statement (CSV)</button>
+      <p className="pg-note">Download your transaction history, credits, debits and running balance.</p><button className="pg-button pg-outline" type="button" disabled={statementBusy} onClick={()=>void downloadStatement()}>{statementBusy?'Preparing PDF…':'Download Account Statement (PDF)'}</button>{statementError&&<p role="alert" className="pg-error">{statementError}</p>}
     </section>
     <section className="pg-feature-card">
       <div className="pg-services-heading"><h2>Service Requests</h2><span>Local only</span></div>

@@ -310,8 +310,12 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  </section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
 }
 function FeeInformation({session}:{session:Session}) {
- const [fees,setFees]=useState<{institution:string;course:string;academicYear:string;studyYear:number;amount:number;confirmed:number}[]>([]);
+ const [fees,setFees]=useState<{institution:string;course:string;academicYear:string;studyYear:number;amount:number;confirmed:number;demoPaid:number;institutionId:string;courseId:string}[]>([]);
  const [message,setMessage]=useState('Loading your approved course fees…');
+ const [amounts,setAmounts]=useState<Record<string,string>>({});
+ const [paying,setPaying]=useState(false);
+ const [paymentMessage,setPaymentMessage]=useState('');
+ const [refreshKey,setRefreshKey]=useState(0);
  useEffect(()=>{let active=true;async function load(){
   if(!supabase)return;
   const {data:requests,error:requestError}=await supabase.from('pg_student_requests').select('institution_id,course_id,status').eq('user_id',session.user.id).eq('status','approved');
@@ -321,29 +325,45 @@ function FeeInformation({session}:{session:Session}) {
   if(!approved.length){setMessage('No approved course was found for this signed-in student account. Please confirm you are using the same account approved by your institution.');return;}
   const institutionIds=[...new Set(approved.map(x=>x.institution_id))];
   const courseIds=[...new Set(approved.map(x=>String(x.course_id)))];
-  const [enrollments,inst,courses,feeRows,credits]=await Promise.all([
+  const [enrollments,inst,courses,feeRows,credits,demoPayments]=await Promise.all([
    supabase.from('pg_enrollments').select('institution_id,active').eq('user_id',session.user.id).eq('active',true).in('institution_id',institutionIds),
    supabase.from('pg_institutions').select('id,name').in('id',institutionIds),
    supabase.from('pg_courses').select('id,name').in('id',courseIds),
    supabase.from('pg_course_fees').select('course_id,institution_id,academic_year,study_year,amount_tzs').in('course_id',courseIds).order('academic_year',{ascending:false}),
-   supabase.from('pg_student_fee_credits').select('institution_id,academic_year,amount_tzs').eq('user_id',session.user.id).in('institution_id',institutionIds)
+   supabase.from('pg_student_fee_credits').select('institution_id,academic_year,amount_tzs').eq('user_id',session.user.id).in('institution_id',institutionIds),
+   supabase.from('pg_demo_fee_payments').select('institution_id,course_id,academic_year,study_year,amount_tzs').eq('user_id',session.user.id)
   ]);
   if(!active)return;
-  const failed=[enrollments,inst,courses,feeRows,credits].find(x=>x.error)?.error;
+  const failed=[enrollments,inst,courses,feeRows,credits,demoPayments].find(x=>x.error)?.error;
   if(failed){setMessage('Unable to load course fees: '+failed.message);return;}
   const activeIds=new Set((enrollments.data||[]).map(x=>x.institution_id));
   if(!approved.some(x=>activeIds.has(x.institution_id))){setMessage('Your course is approved, but the current student session has no active enrollment visible. Please sign out, sign in again, and contact your institution if this persists.');return;}
   const found=(feeRows.data||[]).filter(f=>approved.some(x=>x.course_id===f.course_id&&x.institution_id===f.institution_id)&&activeIds.has(f.institution_id)).map(f=>({
-   institution:inst.data?.find(i=>i.id===f.institution_id)?.name||'Institution',
+   institution:inst.data?.find(i=>i.id===f.institution_id)?.name||'Institution',institutionId:f.institution_id,courseId:f.course_id,
    course:courses.data?.find(c=>c.id===f.course_id)?.name||'Approved course',
    academicYear:f.academic_year,studyYear:Number(f.study_year),amount:Number(f.amount_tzs),
-   confirmed:(credits.data||[]).filter(c=>c.institution_id===f.institution_id&&c.academic_year===f.academic_year).reduce((n,c)=>n+Number(c.amount_tzs),0)
+   confirmed:(credits.data||[]).filter(c=>c.institution_id===f.institution_id&&c.academic_year===f.academic_year).reduce((n,c)=>n+Number(c.amount_tzs),0),
+   demoPaid:(demoPayments.data||[]).filter(c=>c.institution_id===f.institution_id&&c.course_id===f.course_id&&c.academic_year===f.academic_year&&c.study_year===f.study_year).reduce((n,c)=>n+Number(c.amount_tzs),0)
   }));
   setFees(found);
   setMessage(found.length?'':'Your institution has approved your course but has not configured a course fee schedule yet.');
- }void load();return()=>{active=false};},[session.user.id]);
+ }void load();return()=>{active=false};},[session.user.id,refreshKey]);
+ async function payFee(f:typeof fees[number]){
+  if(!supabase||paying)return;
+  const key=f.courseId+'-'+f.academicYear+'-'+f.studyYear;
+  const amount=Number(amounts[key]);
+  const remaining=Math.max(0,f.amount-f.confirmed-f.demoPaid);
+  if(!Number.isSafeInteger(amount)||amount<1||amount>remaining){setPaymentMessage('Enter a whole TZS amount between 1 and your remaining demo fee balance.');return;}
+  if(!window.confirm('Confirm DEMO fee payment of TZS '+amount.toLocaleString('en-TZ')+'? No real funds will move.'))return;
+  setPaying(true);setPaymentMessage('Processing demo payment…');
+  const result=await supabase.rpc('pg_pay_demo_course_fee',{p_id:crypto.randomUUID(),p_institution_id:f.institutionId,p_course_id:f.courseId,p_academic_year:f.academicYear,p_study_year:f.studyYear,p_amount:amount});
+  setPaying(false);
+  if(result.error){setPaymentMessage('Payment failed: '+result.error.message);return;}
+  setPaymentMessage('Demo payment recorded successfully. TZS '+amount.toLocaleString('en-TZ')+' deducted from demo wallet.');
+  setAmounts(prev=>({...prev,[key]:''}));setRefreshKey(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
+ }
  return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Fee</h1>
- <p>View your institution-approved course fees and confirmed fee credits. Online fee payment is not yet available because banking integration is pending authorization.</p>
+ <p>View your institution-approved course fees and confirmed fee credits. Demo wallet fee payments are available. Real bank payments remain unavailable pending authorization.</p>
  {message&&<p role="status">{message}</p>}
  {fees.map((f,i)=><section className="pg-details" key={i}>
  <h2>{f.course}</h2>
@@ -351,12 +371,13 @@ function FeeInformation({session}:{session:Session}) {
  <p><strong>Academic Year</strong><span>{f.academicYear} · Study Year {f.studyYear}</span></p>
  <p><strong>Course Fee</strong><span>TZS {f.amount.toLocaleString('en-TZ')}</span></p>
  <p><strong>Confirmed Fee Credits</strong><span>TZS {f.confirmed.toLocaleString('en-TZ')}</span></p>
- <p><strong>Remaining Fee Balance</strong><span>TZS {Math.max(0,f.amount-f.confirmed).toLocaleString('en-TZ')}</span></p>
- <button type="button" className="pg-button" disabled aria-disabled="true" title="Online fee payments are pending banking authorization" style={{width:'100%',margin:'16px 0',opacity:.65,cursor:'not-allowed'}}>Pay Fee · Coming Soon</button>
- <p className="pg-note" role="status">Online fee payment is currently unavailable. No wallet debit or payment request will be initiated.</p>
+ <p><strong>Demo Wallet Fee Payments</strong><span>TZS {f.demoPaid.toLocaleString('en-TZ')}</span></p>
+ <p><strong>Remaining Demo Fee Balance</strong><span>TZS {Math.max(0,f.amount-f.confirmed-f.demoPaid).toLocaleString('en-TZ')}</span></p>
+ <div className="pg-form" style={{margin:'18px 0'}}><label htmlFor={'fee-amount-'+i}>Amount to pay (TZS)</label><input id={'fee-amount-'+i} type="number" min="1" step="1" max={Math.max(0,f.amount-f.confirmed-f.demoPaid)} placeholder="Enter any amount up to your remaining fee" value={amounts[f.courseId+'-'+f.academicYear+'-'+f.studyYear]||''} onChange={e=>setAmounts(prev=>({...prev,[f.courseId+'-'+f.academicYear+'-'+f.studyYear]:e.target.value}))}/><button type="button" className="pg-button" disabled={paying||f.amount<=f.confirmed+f.demoPaid} onClick={()=>void payFee(f)}>{paying?'Processing…':'Pay from Demo Wallet'}</button></div>
+ <p className="pg-note" role="status">This demo payment deducts your simulated PlayGo Wallet balance and saves a transaction in Supabase. No real bank transfer occurs.</p>
  <p className="pg-note">Fee credits are confirmed by the institution. HESLB loan allocations alone do not count as paid tuition.</p>
  </section>)}
- <p className="pg-note">Payments are disabled. Use only official institution payment channels until PlayGo banking integration is approved.</p></Frame>;
+ {paymentMessage&&<p role="status">{paymentMessage}</p>}<p className="pg-note">Demo payments are not official university receipts. Use official institution channels for real fees.</p></Frame>;
 }
 function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'quick-loan'|'transfer-bank'|'transaction-status'|'transaction-otp'|'history'}){
  const [account,setAccount]=useState<string|null>(null);

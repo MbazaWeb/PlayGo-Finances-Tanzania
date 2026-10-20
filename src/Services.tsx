@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { walletInfo, creditApprovedDemoLoan } from './Wallet';
@@ -111,14 +112,40 @@ export function QuickLoan({account}:{account:string}){
  <p className="pg-note">Requests are stored on this device only. After 2 minutes the demo automatically shows an illustrative approval; this is not a credit assessment, real loan approval, debt, or wallet disbursement. Real loans require a licensed lender and explicit terms.</p>
  </section>;
 }
-export function ServicesPage({ account, institution }: { account: string; institution: string }) {
+export function ServicesPage({ account, institution, userId, supabase }: { account: string; institution: string; userId: string; supabase: SupabaseClient }) {
   const [type, setType] = useState(options[0]);
   const [details, setDetails] = useState('');
   const [requests, setRequests] = useState(() => readRequests().filter(r => r.account === account));
   const [message, setMessage] = useState('');
   const data = walletInfo(account);
-  const outstanding = Math.max(0, data.fee.total - data.fee.paid);
-  const percent = data.fee.total > 0 ? Math.min(100, Math.round(data.fee.paid / data.fee.total * 100)) : 0;
+  const [fee,setFee]=useState<{total:number;paid:number;year:string;course:string}|null>(null);
+  const [feeLoading,setFeeLoading]=useState(true);
+  const [feeError,setFeeError]=useState('');
+  useEffect(()=>{let active=true;
+   async function loadFee(){setFeeLoading(true);setFeeError('');
+    const {data:requests,error:requestError}=await supabase.from('pg_student_requests').select('institution_id,course_id').eq('user_id',userId).eq('status','approved').not('course_id','is',null).limit(1);
+    if(!active)return;
+    if(requestError){setFeeError(requestError.message);setFeeLoading(false);return;}
+    const req=requests?.[0];if(!req){setFee(null);setFeeLoading(false);return;}
+    const {data:years,error:yearError}=await supabase.from('pg_course_fees').select('academic_year,study_year,amount_tzs').eq('course_id',req.course_id).order('academic_year',{ascending:false});
+    if(!active)return;
+    if(yearError){setFeeError(yearError.message);setFeeLoading(false);return;}
+    const studyYear=Number((await supabase.auth.getUser()).data.user?.user_metadata?.study_year_requested||1);
+    const configured=years?.find(row=>Number(row.study_year)===studyYear);
+    if(!configured){setFee(null);setFeeLoading(false);return;}
+    const [credits,payments]=await Promise.all([
+     supabase.from('pg_student_fee_credits').select('amount_tzs').eq('user_id',userId).eq('institution_id',req.institution_id).eq('academic_year',configured.academic_year),
+     supabase.from('pg_demo_fee_payments').select('amount_tzs').eq('user_id',userId).eq('institution_id',req.institution_id).eq('course_id',req.course_id).eq('academic_year',configured.academic_year).eq('study_year',studyYear)
+    ]);
+    if(!active)return;
+    if(credits.error||payments.error){setFeeError(credits.error?.message||payments.error?.message||'Fee records unavailable');setFeeLoading(false);return;}
+    const paid=(credits.data||[]).reduce((n,row)=>n+Number(row.amount_tzs),0)+(payments.data||[]).reduce((n,row)=>n+Number(row.amount_tzs),0);
+    setFee({total:Number(configured.amount_tzs),paid,year:configured.academic_year,course:String(req.course_id)});setFeeLoading(false);
+   }
+   void loadFee();window.addEventListener('playgo:wallet-updated',loadFee);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',loadFee)};
+  },[supabase,userId]);
+  const outstanding=fee?Math.max(0,fee.total-fee.paid):null;
+  const percent=fee&&fee.total>0?Math.min(100,Math.round(fee.paid/fee.total*100)):0;
   const money = (n: number) => 'TZS ' + n.toLocaleString('en-TZ');
   function submitRequest(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -141,11 +168,13 @@ export function ServicesPage({ account, institution }: { account: string; instit
       <Link className="pg-service-tile" to="/quick-loan"><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
     </div>
     <section className="pg-feature-card pg-service-fee">
-      <div className="pg-services-heading"><h2>Fee Status</h2><span>Demo</span></div>
+      <div className="pg-services-heading"><h2>Fee Status</h2></div>
       <p className="pg-service-institution">{institution}</p>
-      <div className="pg-fee-grid"><p>Total Fee<b>{money(data.fee.total)}</b></p><p>Paid<b>{money(data.fee.paid)}</b></p><p>Outstanding<b>{money(outstanding)}</b></p><p>Progress<b>{percent}%</b></p></div>
-      <div className="pg-progress" role="progressbar" aria-label="Tuition fee paid" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><div style={{width: `${percent}%`}} /></div>
-      {outstanding > 0 && <p className="pg-service-reminder">Outstanding fee: {money(outstanding)}. {data.fee.due ? `Demo due date: ${data.fee.due}.` : 'No due date configured.'}</p>}
+      {feeLoading?<p>Loading fee records…</p>:feeError?<p role="alert">Unable to load fee records: {feeError}</p>:fee?<>
+       <p className="pg-note">Academic year {fee.year}</p>
+       <div className="pg-fee-grid"><p>Total Fee<b>{money(fee.total)}</b></p><p>Paid<b>{money(fee.paid)}</b></p><p>Outstanding<b>{money(outstanding??0)}</b></p><p>Progress<b>{percent}%</b></p></div>
+       <div className="pg-progress" role="progressbar" aria-label="Tuition fee paid" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><div style={{width:`${percent}%`}} /></div>
+      </>:<p>No configured fee for your approved course and study year.</p>}
       <Link className="pg-button" to="/pay-fee">Manage Fees →</Link>
     </section>
     <section className="pg-feature-card">

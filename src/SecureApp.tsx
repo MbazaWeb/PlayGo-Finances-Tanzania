@@ -307,7 +307,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  </section>{account&&<LinkedAccounts account={account} supabase={supabase ?? undefined} userId={session.user.id}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}
  {error&&<p className="pg-error" role="alert">{error}</p>}
  
- </section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
+ <footer className="pg-demo-footer">Demo App</footer></section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
 }
 function FeeInformation({session}:{session:Session}) {
  const [fees,setFees]=useState<{institution:string;course:string;academicYear:string;studyYear:number;amount:number;confirmed:number;demoPaid:number;institutionId:string;courseId:string}[]>([]);

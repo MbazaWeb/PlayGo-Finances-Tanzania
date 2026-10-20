@@ -40,7 +40,7 @@ type EnrollmentRow={id:string;user_id:string;admission_number:string;active:bool
 type ProfileRow={user_id:string;full_name:string};
 type AcademicYear={id:string;label:string;structure:string;published:boolean};
 type InstallmentRow={id:string;academic_year_id:string;installment_number:number;amount_tzs:number;due_date:string};
-type TransactionRecord={id:string;user_id:string;kind:string;amount_tzs:number;created_at:string;note:string|null};
+type FeePaymentRecord={id:string;user_id:string;course_id:string;academic_year:string;study_year:number;amount_tzs:number;created_at:string};
 const money=(value:number)=>'TZS '+Number(value||0).toLocaleString('en-TZ');
 const navItems:{id:Section;label:string;icon:string}[]=[
  {id:'dashboard',label:'Dashboard',icon:'▦'},
@@ -75,7 +75,7 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
  const [profiles,setProfiles]=useState<ProfileRow[]>([]);
  const [years,setYears]=useState<AcademicYear[]>([]);
  const [installments,setInstallments]=useState<InstallmentRow[]>([]);
- const [transactions,setTransactions]=useState<TransactionRecord[]>([]);
+ const [transactions,setTransactions]=useState<FeePaymentRecord[]>([]);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
  const [loading,setLoading]=useState(true);
@@ -108,10 +108,10 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
   const [p,i,t]=await Promise.all([
    ids.length?supabase.from('pg_profiles').select('user_id,full_name').in('user_id',ids):Promise.resolve({data:[],error:null}),
    yearIds.length?supabase.from('pg_installments').select('id,academic_year_id,installment_number,amount_tzs,due_date').in('academic_year_id',yearIds).order('due_date'):Promise.resolve({data:[],error:null}),
-   ids.length?supabase.from('pg_demo_transactions').select('id,user_id,kind,amount_tzs,created_at,note').in('user_id',ids).order('created_at',{ascending:false}).limit(100):Promise.resolve({data:[],error:null})
+   supabase.from('pg_demo_fee_payments').select('id,user_id,course_id,academic_year,study_year,amount_tzs,created_at').eq('institution_id',institutionId).order('created_at',{ascending:false}).limit(100)
   ]);
   if(p.error||i.error||t.error)throw new Error(p.error?.message||i.error?.message||t.error?.message||'Unable to load records');
-  setProfiles((p.data||[]) as ProfileRow[]);setInstallments((i.data||[]) as InstallmentRow[]);setTransactions((t.data||[]) as TransactionRecord[]);
+  setProfiles((p.data||[]) as ProfileRow[]);setInstallments((i.data||[]) as InstallmentRow[]);setTransactions((t.data||[]) as FeePaymentRecord[]);
  }
  useEffect(()=>{if(!allowed)return;let mounted=true;
   void refresh().catch(e=>{if(mounted)setError(e instanceof Error?e.message:'Unable to load institution data');}).finally(()=>{if(mounted)setLoading(false);});
@@ -235,9 +235,9 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:590}}><thead><tr style={{textAlign:'left',background:'#f5f7fb'}}>{['Student','Admission Number','Enrollment Status','Action'].map(h=><th key={h} style={{padding:14}}>{h}</th>)}</tr></thead><tbody>{visible.map(e=><tr key={e.id} style={{borderTop:'1px solid #e9edf3'}}><td style={{padding:14,fontWeight:600}}>{names.get(e.user_id)||'Name unavailable'}</td><td style={{padding:14}}>{e.admission_number}</td><td style={{padding:14,color:e.active?'#087647':'#9a6700'}}>{e.active?'Active':'Inactive'}</td><td style={{padding:14}}><button type="button" disabled={busyId===e.id} onClick={()=>void changeStatus(e)} style={{...action,padding:'8px 12px',background:e.active?'#667386':'#e32235'}}>{busyId===e.id?'Saving…':e.active?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table>{!visible.length&&<p style={muted}>No matching student enrollments.</p>}</div>
     </section>}
     {section==='payments'&&<div style={{display:'grid',gap:20}}>
-     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:14}}><div style={card}><div style={muted}>Scheduled Fees</div><strong style={{fontSize:23}}>{money(totalFees)}</strong></div><div style={card}><div style={muted}>Fee Installments</div><strong style={{fontSize:28}}>{installments.length}</strong></div><div style={card}><div style={muted}>Recent Transactions</div><strong style={{fontSize:28}}>{transactions.length}</strong></div></div>
+     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:14}}><div style={card}><div style={muted}>Scheduled Fees</div><strong style={{fontSize:23}}>{money(totalFees)}</strong></div><div style={card}><div style={muted}>Fee Installments</div><strong style={{fontSize:28}}>{installments.length}</strong></div><div style={card}><div style={muted}>Recent Fee Payments</div><strong style={{fontSize:28}}>{transactions.length}</strong></div></div>
      <section style={card}><h2>Academic Years & Fee Schedule</h2><p style={muted}>Published schedules are visible to enrolled students. Figures below represent scheduled amounts, not confirmed payments.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:570}}><thead><tr style={{textAlign:'left'}}>{['Academic Year','Installment','Amount','Due Date','Year Status'].map(h=><th key={h} style={{padding:12,borderBottom:'1px solid #ddd'}}>{h}</th>)}</tr></thead><tbody>{installments.map(i=>{const y=years.find(x=>x.id===i.academic_year_id);return <tr key={i.id}><td style={{padding:12}}>{y?.label||'Unknown year'}</td><td style={{padding:12}}>{i.installment_number}</td><td style={{padding:12}}>{money(i.amount_tzs)}</td><td style={{padding:12}}>{i.due_date}</td><td style={{padding:12}}>{y?.published?'Published':'Draft'}</td></tr>;})}</tbody></table>{!installments.length&&<p style={muted}>No fee installments configured yet.</p>}</div></section>
-     <section style={card}><h2>Transaction History</h2><p style={{...muted}}>Latest 100 transactions for students enrolled at this institution.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:650}}><thead><tr style={{textAlign:'left'}}>{['Date','Student','Type','Amount','Note'].map(h=><th key={h} style={{padding:12,borderBottom:'1px solid #ddd'}}>{h}</th>)}</tr></thead><tbody>{transactions.map(t=><tr key={t.id}><td style={{padding:12}}>{new Date(t.created_at).toLocaleDateString('en-TZ')}</td><td style={{padding:12}}>{names.get(t.user_id)||'Student'}</td><td style={{padding:12}}>{t.kind}</td><td style={{padding:12}}>{money(t.amount_tzs)}</td><td style={{padding:12}}>{t.note?.replace(/^(?:SIMULATED ONLY|DEMO ONLY|SIMULATION ONLY)\s*[·:|—-]\s*/i,'')||'—'}</td></tr>)}</tbody></table>{!transactions.length&&<p style={muted}>No transactions found.</p>}</div></section>
+     <section style={card}><h2>Fee Payment History</h2><p style={{...muted}}>Latest 100 fee payments received by this institution.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:650}}><thead><tr style={{textAlign:'left'}}>{['Date','Student','Course','Amount','Academic Year'].map(h=><th key={h} style={{padding:12,borderBottom:'1px solid #ddd'}}>{h}</th>)}</tr></thead><tbody>{transactions.map(t=><tr key={t.id}><td style={{padding:12}}>{new Date(t.created_at).toLocaleDateString('en-TZ')}</td><td style={{padding:12}}>{names.get(t.user_id)||'Student'}</td><td style={{padding:12}}>{courses.find(c=>c.id===t.course_id)?.name||'Course'}</td><td style={{padding:12}}>{money(t.amount_tzs)}</td><td style={{padding:12}}>{t.academic_year} · Year {t.study_year}</td></tr>)}</tbody></table>{!transactions.length&&<p style={muted}>No fee payments recorded yet.</p>}</div></section>
      <p style={muted}></p>
     </div>}
     {section==='inquiries'&&<SupportInbox supabase={supabase} userId={session.user.id} role="institution" institutionId={institutionId}/>}

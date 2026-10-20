@@ -56,7 +56,7 @@ export function HomeLoanStatus({account}:{account:string}){
  <Link className="pg-button" to={active?'/quick-loan?request='+encodeURIComponent(active.id):'/quick-loan'}>{active?'View Loan Check →':'⚡ Request Personal Boost →'}</Link>
  <h3>Loan Request History</h3>{ordered.length===0?<p className="pg-note">No loan requests yet.</p>:ordered.slice(0,4).map(x=><div className="pg-tx" key={x.id}><div><Link to={'/quick-loan?request='+encodeURIComponent(x.id)}><b>{x.id}</b></Link><small>{new Date(x.createdAt).toLocaleString('en-TZ')} · {x.termDays===1?'24 hours':x.termDays+' days'}</small><small>{x.status}</small></div><strong>{money(x.amount)}</strong></div>)}
  {ordered.length>4&&<Link to="/quick-loan">View all loan requests →</Link>}
- <p className="pg-note">Loan checks and approvals are simulated only. No real lender decision, real debt or real money is created. Simulated loan credit and repayment liability are shown in the demo wallet.</p></div>;
+ </div>;
 }
 export function QuickLoan({account}:{account:string}){
  const [searchParams]=useSearchParams();const selectedRequest=searchParams.get('request');
@@ -131,7 +131,7 @@ export function ServicesPage({ account, institution }: { account: string; instit
   return <>
     <h1>Student Services</h1>
     <p>Manage your student payments and financial records in one place.</p>
-    <div className="pg-services-notice">DEMO MODE · No university or financial institution is connected.</div>
+    
     <div className="pg-services-grid">
       <Link className="pg-service-tile" to="/pay-fee"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Tuition Fees</strong><small>View and pay fees</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/history"><span className="pg-service-symbol" aria-hidden="true">◷</span><strong>Transactions</strong><small>Payment history</small><span className="pg-service-arrow">›</span></Link>
@@ -150,7 +150,7 @@ export function ServicesPage({ account, institution }: { account: string; instit
     </section>
     <section className="pg-feature-card">
       <div className="pg-services-heading"><h2>Account Statement</h2><span>{data.transactions.length} records</span></div>
-      <p>Export the transactions saved in this browser as a CSV statement. The statement is not an official bank record.</p>
+      
       <button className="pg-button pg-outline" type="button" onClick={() => downloadStatement(account)}>Download Demo Statement (CSV)</button>
     </section>
     <section className="pg-feature-card">

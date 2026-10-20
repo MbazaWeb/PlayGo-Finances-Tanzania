@@ -99,34 +99,22 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
   const [statementTo,setStatementTo]=useState(new Date().toISOString().slice(0,10));
   const [statementError,setStatementError]=useState('');
   const data = walletInfo(account);
-  const [fee,setFee]=useState<{total:number;paid:number;year:string;course:string}|null>(null);
+  const [feePayments,setFeePayments]=useState<{id:string;amount_tzs:number;created_at:string}[]>([]);
   const [feeLoading,setFeeLoading]=useState(true);
   const [feeError,setFeeError]=useState('');
   useEffect(()=>{let active=true;
    async function loadFee(){setFeeLoading(true);setFeeError('');
-    const {data:requests,error:requestError}=await supabase.from('pg_student_requests').select('institution_id,course_id').eq('user_id',userId).eq('status','approved').not('course_id','is',null).limit(1);
+    const result=await supabase.from('pg_demo_fee_payments').select('id,amount_tzs,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(1000);
     if(!active)return;
-    if(requestError){setFeeError(requestError.message);setFeeLoading(false);return;}
-    const req=requests?.[0];if(!req){setFee(null);setFeeLoading(false);return;}
-    const {data:years,error:yearError}=await supabase.from('pg_course_fees').select('academic_year,study_year,amount_tzs').eq('course_id',req.course_id).order('academic_year',{ascending:false});
-    if(!active)return;
-    if(yearError){setFeeError(yearError.message);setFeeLoading(false);return;}
-    const studyYear=Number((await supabase.auth.getUser()).data.user?.user_metadata?.study_year_requested||1);
-    const configured=years?.find(row=>Number(row.study_year)===studyYear);
-    if(!configured){setFee(null);setFeeLoading(false);return;}
-    const [credits,payments]=await Promise.all([
-     supabase.from('pg_student_fee_credits').select('amount_tzs').eq('user_id',userId).eq('institution_id',req.institution_id).eq('academic_year',configured.academic_year),
-     supabase.from('pg_demo_fee_payments').select('amount_tzs').eq('user_id',userId).eq('institution_id',req.institution_id).eq('course_id',req.course_id).eq('academic_year',configured.academic_year).eq('study_year',studyYear)
-    ]);
-    if(!active)return;
-    if(credits.error||payments.error){setFeeError(credits.error?.message||payments.error?.message||'Fee records unavailable');setFeeLoading(false);return;}
-    const paid=(credits.data||[]).reduce((n,row)=>n+Number(row.amount_tzs),0)+(payments.data||[]).reduce((n,row)=>n+Number(row.amount_tzs),0);
-    setFee({total:Number(configured.amount_tzs),paid,year:configured.academic_year,course:String(req.course_id)});setFeeLoading(false);
+    if(result.error)setFeeError(result.error.message);else setFeePayments((result.data||[]) as {id:string;amount_tzs:number;created_at:string}[]);
+    setFeeLoading(false);
    }
-   void loadFee();window.addEventListener('playgo:wallet-updated',loadFee);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',loadFee)};
+   void loadFee();window.addEventListener('playgo:wallet-updated',loadFee);
+   return()=>{active=false;window.removeEventListener('playgo:wallet-updated',loadFee);};
   },[supabase,userId]);
-  const outstanding=fee?Math.max(0,fee.total-fee.paid):null;
-  const percent=fee&&fee.total>0?Math.min(100,Math.round(fee.paid/fee.total*100)):0;
+  const feePaid=feePayments.reduce((sum,p)=>sum+Number(p.amount_tzs),0);
+  const feeMonths=Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-5+i);const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');return {key,label:d.toLocaleDateString('en-GB',{month:'short'}),amount:feePayments.filter(p=>p.created_at.slice(0,7)===key).reduce((n,p)=>n+Number(p.amount_tzs),0)};});
+  const maxFeeMonth=Math.max(1,...feeMonths.map(m=>m.amount));
   const money = (n: number) => 'TZS ' + n.toLocaleString('en-TZ');
   async function downloadStatement(){
    setStatementBusy(true);setStatementError('');
@@ -167,7 +155,7 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
     <p>Manage your student payments and financial records in one place.</p>
     
     <div className="pg-services-grid">
-      <Link className="pg-service-tile" to="/pay-fee"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Tuition Fees</strong><small>View and pay fees</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/pay-fee"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Tuition Fees</strong><small>Enter amount and pay fees</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/history"><span className="pg-service-symbol" aria-hidden="true">◷</span><strong>Transactions</strong><small>Payment history</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/add-money"><span className="pg-service-symbol" aria-hidden="true">＋</span><strong>Add Money</strong><small>Fund your wallet</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/profile"><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Linked Accounts</strong><small>NMB Bank only</small><span className="pg-service-arrow">›</span></Link>
@@ -175,14 +163,17 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
       <Link className="pg-service-tile" to="/quick-loan"><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
     </div>
     <section className="pg-feature-card pg-service-fee">
-      <div className="pg-services-heading"><h2>Fee Status</h2></div>
+      <div className="pg-services-heading"><h2>Fee Payment Progress</h2></div>
       <p className="pg-service-institution">{institution}</p>
-      {feeLoading?<p>Loading fee records…</p>:feeError?<p role="alert">Unable to load fee records: {feeError}</p>:fee?<>
-       <p className="pg-note">Academic year {fee.year}</p>
-       <div className="pg-fee-grid"><p>Total Fee<b>{money(fee.total)}</b></p><p>Paid<b>{money(fee.paid)}</b></p><p>Outstanding<b>{money(outstanding??0)}</b></p><p>Progress<b>{percent}%</b></p></div>
-       <div className="pg-progress" role="progressbar" aria-label="Tuition fee paid" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><div style={{width:`${percent}%`}} /></div>
-      </>:<p>No configured fee for your approved course and study year.</p>}
-      <Link className="pg-button" to="/pay-fee">Manage Fees →</Link>
+      {feeLoading?<p>Loading payments…</p>:feeError?<p role="alert">Unable to load payments: {feeError}</p>:<>
+       <div className="pg-fee-grid"><p>Paid via PlayGo<b>{money(feePaid)}</b></p><p>Payments<b>{feePayments.length}</b></p></div>
+       <p className="pg-note">Your last six months of tuition payments through PlayGo</p>
+       <div className="pg-fee-trend" role="img" aria-label={feeMonths.map(m=>m.label+' '+money(m.amount)).join('; ')}>
+        {feeMonths.map(m=><div key={m.key} className="pg-fee-trend-month"><strong>{m.amount?money(m.amount):'—'}</strong><div className="pg-fee-trend-track"><div style={{height:(m.amount?Math.max(5,m.amount/maxFeeMonth*100):0)+'%'}}/></div><small>{m.label}</small></div>)}
+       </div>
+       <div className="pg-fee-recent"><strong>Recent Fee Payments</strong>{feePayments.slice(0,4).map(p=><div key={p.id} className="pg-tx"><span>{new Date(p.created_at).toLocaleDateString('en-GB')}</span><b>{money(p.amount_tzs)}</b></div>)}{!feePayments.length&&<p>No tuition payments recorded yet.</p>}</div>
+      </>}
+      <Link className="pg-button" to="/pay-fee">Pay Tuition Fee →</Link>
     </section>
     <section className="pg-feature-card pg-statement-card">
      <div className="pg-services-heading"><h2>Account Statement</h2><span>PDF</span></div>

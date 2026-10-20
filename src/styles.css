@@ -39,3 +39,31 @@
 .pg-profile-finances h2{font-size:19px}
 .pg-profile-logout{margin-top:6px}
 @media(max-width:540px){.pg-profile-card{padding:17px}.pg-profile-fields{grid-template-columns:1fr;gap:15px}.pg-profile-avatar{width:52px;height:52px;border-radius:16px;font-size:24px}}
+
+/* Fee payment review */
+.pg-fee-review{padding:26px!important;border-radius:22px!important;display:grid;gap:22px}
+.pg-fee-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.pg-fee-review-head h2{margin:6px 0 7px;font-size:clamp(23px,4vw,29px);line-height:1.2}
+.pg-fee-review-head p:last-child{margin:0;color:#758092;font-size:14px}
+.pg-fee-review-icon{width:40px;height:40px;border-radius:13px;background:#fff0f1;color:#e51a2b;display:grid;place-items:center;font-weight:800;font-size:20px;flex:none}
+.pg-fee-review-amount{display:grid;gap:7px;padding:23px;border-radius:17px;background:#171717;color:#fff}
+.pg-fee-review-amount>span{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#c9c9c9}
+.pg-fee-review-amount strong{font-size:clamp(28px,5vw,37px);letter-spacing:-.03em;line-height:1.2}
+.pg-fee-review-amount small{font-size:13px;color:#ddd}
+.pg-fee-review-details{display:grid;gap:0}
+.pg-fee-review-details>div{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding:14px 0;border-bottom:1px solid #e9ebef}
+.pg-fee-review-details span{font-size:13px;color:#6f7887}
+.pg-fee-review-details strong{font-size:14px;text-align:right;overflow-wrap:anywhere}
+.pg-fee-review-remaining strong{color:#d7192c}
+.pg-fee-review-verify{padding:20px;border:1px solid #e8eaf0;border-radius:16px;background:#fafbfc;display:grid;gap:12px}
+.pg-fee-review-verify h3{margin:0;font-size:17px}
+.pg-fee-review-verify>p{margin:0;color:#687385;font-size:13px}
+.pg-fee-review-code{display:flex;align-items:center;flex-wrap:wrap;gap:9px 14px;padding:12px 14px;background:#fff;border:1px dashed #e2a5ac;border-radius:12px}
+.pg-fee-review-code span,.pg-fee-review-code small{color:#707987;font-size:12px}
+.pg-fee-review-code strong{font-size:20px;letter-spacing:.16em;color:#191919}
+.pg-fee-review-verify label{font-size:13px;font-weight:700;margin-top:4px}
+.pg-fee-review-verify input{width:100%;min-height:52px;border:1px solid #d8dce5;border-radius:12px;padding:12px 15px;font-size:20px;letter-spacing:.18em;box-sizing:border-box}
+.pg-fee-review-verify input:focus{outline:2px solid #f1a5ac;outline-offset:1px}
+.pg-fee-review-actions{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:stretch}
+.pg-fee-review-actions .pg-button{min-height:52px;margin:0;display:grid;place-items:center;padding:12px 18px;border-radius:12px}
+@media(max-width:480px){.pg-fee-review{padding:18px!important;gap:16px}.pg-fee-review-details>div{align-items:flex-start;flex-direction:column;gap:6px}.pg-fee-review-details strong{text-align:left}.pg-fee-review-actions{grid-template-columns:1fr}.pg-fee-review-code{gap:7px 12px}}

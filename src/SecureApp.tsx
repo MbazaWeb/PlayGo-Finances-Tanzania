@@ -304,7 +304,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  <div className="pg-details"><p><strong>Programme duration</strong><span>2 years</span></p><p><strong>Year {savedStudyYear} fees</strong><span>TZS {(savedStudyYear==='1'?1335000:1445000).toLocaleString()}</span></p><p><strong>Whole programme</strong><span>TZS 2,780,000</span></p><p><strong>Tuition per year</strong><span>TZS 1,060,000</span></p><p><strong>Fee payment status</strong><span>Not verified</span></p></div>
  <h3>Payment schedule · Year {savedStudyYear}</h3>
  <div className="pg-details">{[savedStudyYear==='1'?540000:650000,265000,265000,265000].map((amount,i)=><p key={i}><strong>Instalment {i+1}</strong><span>TZS {amount.toLocaleString()}</span></p>)}</div>
- <p className="pg-note">The university schedule includes non-tuition charges. Payment must use RUCU SIMS control numbers. This is a fee reference only, not a payment request. Accommodation, NHIF and late-registration charges may apply separately.</p>
+ 
  </div>}
  </>:<p className="pg-note">No verified course fee schedule has been provided for this institution. Ask your university administrator to publish the official schedule.</p>}
  </section>{account&&<LinkedAccounts account={account} supabase={supabase ?? undefined} userId={session.user.id}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}

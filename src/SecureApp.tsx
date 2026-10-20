@@ -210,7 +210,7 @@ function Dashboard({ session }: { session: Session }) {
   }, [session.user.id]);
   return <Frame><h1>Hello, {profile?.full_name || 'Student'}!</h1><p>Signed in as {session.user.email}</p><div className="pg-details"><p><strong>PlayGo Account</strong><span>{profile?.playgo_account || 'Pending provisioning'}</span></p><p><strong>Banking</strong><span>Not connected</span></p></div><h2>My institutions</h2>{enrollments.length ? enrollments.map(e=><p key={e.id}>{institutions.find(i=>i.id===e.institution_id)?.name || 'Institution'} · {e.admission_number} · {e.active ? 'Active' : 'Inactive'}</p>) : <p>No verified institution enrollment yet. Contact your institution administrator.</p>}<h2>Published fee schedules</h2>{years.length ? years.map(y=><div key={y.id}><strong>{institutions.find(i=>i.id===y.institution_id)?.name} — {y.label}</strong>{installments.filter(t=>t.academic_year_id===y.id).map(t=><p key={t.id}>Installment {t.installment_number}: TZS {Number(t.amount_tzs).toLocaleString()} · Due {t.due_date}</p>)}</div>) : <p>No published schedules available.</p>}{error && <p className="pg-error" role="alert">{error}</p>}<button className="pg-button pg-outline" onClick={()=>void supabase?.auth.signOut()}>Log out</button></Frame>;
 }
-type StudentFinance={courseName:string;fee:number|null;feeSource:string;feeYear:string|null;loanRows:{id:string;academic_year:string;amount_tzs:number;status:string;tuition_tzs:number;meals_accommodation_tzs:number;books_stationery_tzs:number;field_practical_tzs:number;research_tzs:number;other_tzs:number}[];credits:{id:string;academic_year:string;amount_tzs:number;source:string;reference:string;confirmed_at:string}[]};
+type StudentFinance={courseName:string;fee:number|null;feeSource:string;feeYear:string|null;loanRows:{id:string;academic_year:string;amount_tzs:number;status:string;tuition_tzs:number;meals_accommodation_tzs:number;books_stationery_tzs:number;field_practical_tzs:number;research_tzs:number;other_tzs:number}[];credits:{id:string;academic_year:string;amount_tzs:number;source:string;reference:string;confirmed_at:string}[];walletFeePayments:{id:string;academic_year:string;study_year:number;amount_tzs:number;created_at:string}[]};
 function StudentFinancialOverview({userId,studyYear}:{userId:string;studyYear:string}){
  const [finance,setFinance]=useState<StudentFinance|null>(null);const [message,setMessage]=useState('Loading institution-approved financial records…');
  useEffect(()=>{let mounted=true;async function load(){
@@ -220,31 +220,35 @@ function StudentFinancialOverview({userId,studyYear}:{userId:string;studyYear:st
   if(requests.error){setMessage('Unable to load approved enrollment: '+requests.error.message);return;}
   const request=requests.data?.find(r=>r.course_id);
   if(!request){setMessage('Your institution must approve your course before a fee balance can be calculated.');return;}
-  const [course,fees,loans,credits]=await Promise.all([
+  const [course,fees,loans,credits,walletPayments]=await Promise.all([
    supabase.from('pg_courses').select('name,fee_tzs').eq('id',request.course_id).maybeSingle(),
    supabase.from('pg_course_fees').select('academic_year,study_year,amount_tzs').eq('course_id',request.course_id).eq('study_year',Number(studyYear)).order('academic_year',{ascending:false}).limit(1),
    supabase.from('pg_heslb_disbursements').select('id,academic_year,amount_tzs,status,tuition_tzs,meals_accommodation_tzs,books_stationery_tzs,field_practical_tzs,research_tzs,other_tzs').eq('user_id',userId).eq('institution_id',request.institution_id),
-   supabase.from('pg_student_fee_credits').select('id,academic_year,amount_tzs,source,reference,confirmed_at').eq('user_id',userId).eq('institution_id',request.institution_id)
+   supabase.from('pg_student_fee_credits').select('id,academic_year,amount_tzs,source,reference,confirmed_at').eq('user_id',userId).eq('institution_id',request.institution_id),
+   supabase.from('pg_demo_fee_payments').select('id,academic_year,study_year,amount_tzs,created_at').eq('user_id',userId).eq('institution_id',request.institution_id).eq('course_id',request.course_id)
   ]);
   if(!mounted)return;
-  const failure=[course,fees,loans,credits].find(r=>r.error)?.error;
+  const failure=[course,fees,loans,credits,walletPayments].find(r=>r.error)?.error;
   if(failure){setMessage('Unable to load financial overview: '+failure.message);return;}
   const configured=fees.data?.[0];const base=course.data?.fee_tzs;
-  setFinance({courseName:course.data?.name||'Approved course',fee:configured?Number(configured.amount_tzs):base!=null?Number(base):null,feeSource:configured?'Configured course fee · '+configured.academic_year:'Programme catalogue reference only',feeYear:configured?.academic_year||null,loanRows:loans.data||[],credits:credits.data||[]});setMessage('');
+  setFinance({courseName:course.data?.name||'Approved course',fee:configured?Number(configured.amount_tzs):base!=null?Number(base):null,feeSource:configured?'Configured course fee · '+configured.academic_year:'Programme catalogue reference only',feeYear:configured?.academic_year||null,loanRows:loans.data||[],credits:credits.data||[],walletFeePayments:walletPayments.data||[]});setMessage('');
  }void load();return()=>{mounted=false};},[userId,studyYear]);
  if(!finance)return <section className="pg-details"><h2>Student Financial Overview</h2><p>{message}</p></section>;
  const totalLoan=finance.loanRows.reduce((n,r)=>n+Number(r.amount_tzs),0);
  const applicableCredits=finance.feeYear?finance.credits.filter(r=>r.academic_year===finance.feeYear):[];
  const totalCredit=applicableCredits.reduce((n,r)=>n+Number(r.amount_tzs),0);
- const balance=finance.feeYear&&finance.fee!==null?Math.max(0,finance.fee-totalCredit):null;
+ const applicableWalletPayments=finance.feeYear?finance.walletFeePayments.filter(r=>r.academic_year===finance.feeYear&&Number(r.study_year)===Number(studyYear)):[];
+ const totalWalletPaid=applicableWalletPayments.reduce((n,r)=>n+Number(r.amount_tzs),0);
+ const totalPaid=totalCredit+totalWalletPaid;
+ const balance=finance.feeYear&&finance.fee!==null?Math.max(0,finance.fee-totalPaid):null;
  const categories:[string,keyof StudentFinance['loanRows'][number]][]=[['Tuition / Fees','tuition_tzs'],['Meals & Accommodation','meals_accommodation_tzs'],['Books & Stationery','books_stationery_tzs'],['Field / Practical','field_practical_tzs'],['Research','research_tzs'],['Other','other_tzs']];
  const format=(n:number)=>'TZS '+n.toLocaleString('en-TZ');
  return <section style={{margin:'20px 0',border:'1px solid #e4e9f1',borderRadius:16,padding:18}}>
  <h2>Student Financial Overview</h2>
- <div className="pg-details"><p><strong>Approved course</strong><span>{finance.courseName}</span></p><p><strong>Year {studyYear} fee</strong><span>{finance.fee===null?'Not configured':format(finance.fee)}</span></p><p><strong>Fee basis</strong><span>{finance.feeSource}</span></p><p><strong>HESLB allocation reported</strong><span>{format(totalLoan)}</span></p><p><strong>Confirmed fee credits</strong><span>{format(totalCredit)}</span></p><p><strong>Remaining university fee</strong><span>{balance===null?'Awaiting configured academic-year fee':format(balance)}</span></p></div>
- {balance!==null&&<div style={{height:10,background:'#e9edf4',borderRadius:8,overflow:'hidden',margin:'12px 0'}} role="progressbar" aria-label="Confirmed fee payment progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={finance.fee?Math.min(100,Math.round(totalCredit/finance.fee*100)):100}><div style={{width:(finance.fee?Math.min(100,totalCredit/finance.fee*100):100)+'%',height:'100%',background:'#11845b'}}/></div>}
+ <div className="pg-details"><p><strong>Approved course</strong><span>{finance.courseName}</span></p><p><strong>Year {studyYear} fee</strong><span>{finance.fee===null?'Not configured':format(finance.fee)}</span></p><p><strong>Fee basis</strong><span>{finance.feeSource}</span></p><p><strong>HESLB allocation reported</strong><span>{format(totalLoan)}</span></p><p><strong>Confirmed fee credits</strong><span>{format(totalCredit)}</span></p><p><strong>PlayGo Wallet fee payments</strong><span>{format(totalWalletPaid)}</span></p><p><strong>Total fee paid</strong><span>{format(totalPaid)}</span></p><p><strong>Remaining university fee</strong><span>{balance===null?'Awaiting configured academic-year fee':format(balance)}</span></p></div>
+ {balance!==null&&<div style={{height:10,background:'#e9edf4',borderRadius:8,overflow:'hidden',margin:'12px 0'}} role="progressbar" aria-label="Confirmed fee payment progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={finance.fee?Math.min(100,Math.round(totalPaid/finance.fee*100)):100}><div style={{width:(finance.fee?Math.min(100,totalPaid/finance.fee*100):100)+'%',height:'100%',background:'#11845b'}}/></div>}
  <h3>HESLB allocation distribution</h3>{finance.loanRows.length?finance.loanRows.map(r=><div key={r.id} className="pg-details"><p><strong>{r.academic_year}</strong><span>{format(r.amount_tzs)} · {r.status==='verified'?'Verified source record':'Institution reported / unverified'}</span></p>{categories.filter(([,key])=>Number(r[key]||0)>0).map(([label,key])=><p key={key}><strong>{label}</strong><span>{format(Number(r[key]||0))}</span></p>)}</div>):<p>No institution-reported HESLB allocation yet.</p>}
- <h3>Confirmed fee payments / credits</h3>{finance.credits.length?finance.credits.map(c=><p key={c.id} className="pg-details"><strong>{c.source==='heslb_tuition_confirmed'?'HESLB tuition credit':'Institution-confirmed payment'} · {c.academic_year}</strong><span>{format(Number(c.amount_tzs))} · Ref: {c.reference}</span></p>):<p>No confirmed fee payments or credits recorded.</p>}
+ <h3>Fee payments & credits</h3>{finance.credits.length?finance.credits.map(c=><p key={c.id} className="pg-details"><strong>{c.source==='heslb_tuition_confirmed'?'HESLB tuition credit':'Institution-confirmed payment'} · {c.academic_year}</strong><span>{format(Number(c.amount_tzs))} · Ref: {c.reference}</span></p>):<p>No confirmed fee payments or credits recorded.</p>}
  
  </section>;
 }

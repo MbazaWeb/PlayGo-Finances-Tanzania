@@ -16,3 +16,26 @@
 .pg-services-notice{background:#fff2f3;color:#a51521;font-size:12px;font-weight:750;padding:11px 13px;border-radius:12px;margin:18px 0}.pg-services-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:22px 0}.pg-service-tile{display:flex;flex-direction:column;gap:8px;min-height:145px;padding:17px 15px;border:1px solid #e8e8e8;border-radius:16px;color:#171717;position:relative}.pg-service-tile:hover,.pg-service-tile:focus-visible{border-color:#e31b28;background:#fffafa}.pg-service-symbol{color:#e31b28;font-size:27px;font-weight:700}.pg-service-tile strong{font-size:14px}.pg-service-tile small{color:#777;font-size:11px}.pg-service-arrow{position:absolute;right:13px;top:15px;font-size:23px;color:#aaa}.pg-services-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}.pg-services-heading h2{margin:0;font-size:19px}.pg-services-heading>span{font-size:11px;color:#888}.pg-service-institution{font-size:12px!important;margin:12px 0}.pg-service-reminder{font-size:12px!important;background:#fff5e6;padding:12px;border-radius:10px;color:#8d5100!important}.pg-service-fee .pg-button{margin-top:20px}.pg-services-form{margin-top:12px}.pg-services-form textarea{border:1px solid #d7d7d7;border-radius:11px;padding:12px;resize:vertical;font:inherit;width:100%}.pg-services-form textarea:focus{outline:2px solid #e31b2840;border-color:#e31b28}.pg-services-message{font-size:12px!important;color:#5e5e5e!important}.pg-services-subtitle{font-size:15px;margin:25px 0 10px}.pg-service-request{padding:14px 0;border-top:1px solid #eee;overflow-wrap:anywhere}.pg-service-request strong,.pg-service-request small{display:block}.pg-service-request small{font-size:11px;color:#777;margin-top:5px}.pg-service-request p{font-size:13px!important;color:#333!important}.pg-service-request>span{font-size:11px;font-weight:700;color:#a51521}.pg-feature-card .pg-outline{margin-top:14px}
 
 .pg-demo-footer{margin:32px auto 12px;padding:14px 0 6px;border-top:1px solid #e8eaf0;text-align:center;font-size:12px;font-weight:600;letter-spacing:.04em;color:#8a929e}
+
+/* Unified student profile */
+.pg-profile-redesign{display:grid;gap:18px}
+.pg-profile-heading{display:flex;align-items:center;gap:16px;margin:12px 0 8px}
+.pg-profile-heading h1{margin:4px 0;font-size:clamp(27px,5vw,36px)}
+.pg-profile-heading p:last-child{margin:0;color:#687385}
+.pg-profile-avatar{width:64px;height:64px;display:grid;place-items:center;flex:none;border-radius:20px;background:#fff0f1;color:#e71b2d;font-size:29px;font-weight:800}
+.pg-profile-card{background:#fff;border:1px solid #e5e8ee;border-radius:20px;padding:22px;min-width:0}
+.pg-profile-card h2{margin:0 0 16px;font-size:19px;line-height:1.3}
+.pg-profile-card-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pg-profile-card-heading h2{margin:0}
+.pg-profile-pill{font-size:11px;font-weight:700;background:#edf8f0;color:#20734c;padding:7px 10px;border-radius:100px;white-space:nowrap}
+.pg-profile-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 22px}
+.pg-profile-fields>div{display:grid;gap:5px;min-width:0}
+.pg-profile-fields span{font-size:12px;color:#798394}
+.pg-profile-fields strong{font-size:14px;color:#171b23;overflow-wrap:anywhere;font-weight:650}
+.pg-profile-inline-link,.pg-profile-inline-button{color:#e51a2b;text-decoration:none;font-size:13px;font-weight:700}
+.pg-profile-inline-button{border:0;background:none;padding:0;cursor:pointer}
+.pg-profile-card>.pg-profile-inline-link,.pg-profile-card>.pg-profile-inline-button{display:inline-block;margin-top:20px}
+.pg-profile-finances>section{margin:0;border:0;padding:0}
+.pg-profile-finances h2{font-size:19px}
+.pg-profile-logout{margin-top:6px}
+@media(max-width:540px){.pg-profile-card{padding:17px}.pg-profile-fields{grid-template-columns:1fr;gap:15px}.pg-profile-avatar{width:52px;height:52px;border-radius:16px;font-size:24px}}

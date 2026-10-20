@@ -2,18 +2,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// Fictional merchant directory for demonstration. No real businesses are represented.
-export const DEMO_MERCHANTS = [
-  { id: 'PGM1001', name: 'Campus Bookshop', category: 'Books & Stationery', initials: 'CB' },
-  { id: 'PGM1002', name: 'Student Cafeteria', category: 'Food & Drinks', initials: 'SC' },
-  { id: 'PGM1003', name: 'Campus Print Hub', category: 'Printing & Copying', initials: 'PH' },
-  { id: 'PGM1004', name: 'Student Essentials', category: 'Shopping', initials: 'SE' },
-  { id: 'PGM1005', name: 'Campus Laundry', category: 'Lifestyle', initials: 'CL' },
-] as const;
+type MerchantRecord={id:string;name:string;category:string;initials:string;operator:string};
 
 export function MerchantPage({ account, userId, supabase }: { account: string; userId: string; supabase: SupabaseClient }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [merchants,setMerchants]=useState<MerchantRecord[]>([]);
   const [operator,setOperator]=useState('PlayGo');
   const [scanOpen,setScanOpen]=useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -24,14 +18,15 @@ export function MerchantPage({ account, userId, supabase }: { account: string; u
   const [paying,setPaying]=useState(false);
   const [otp,setOtp]=useState('');
   const [challenge,setChallenge]=useState<{code:string;expires:number}|null>(null);
-  const merchant = DEMO_MERCHANTS.find(m => m.id === selected);
+  const merchant = merchants.find(m => m.id === selected);
   const [balance,setBalance]=useState<number|null>(null);
+  useEffect(()=>{let mounted=true;void supabase.from('pg_merchants').select('id,name,category,initials,operator').eq('active',true).then(({data,error})=>{if(!mounted)return;if(error)setError('Unable to load merchants: '+error.message);else setMerchants(data||[])});return()=>{mounted=false}},[supabase]);
   useEffect(()=>{let active=true;async function refresh(){const {data,error}=await supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle();if(!active)return;if(error){setError('Unable to load wallet balance: '+error.message);setBalance(null);}else{setBalance(Number(data?.balance_tzs??0));setError('');}}void refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh)};},[supabase,userId]);
   const value = Number(amount);
   const fee=Number.isSafeInteger(value)&&value>0?Math.ceil(value/100):0;
   const total=value+fee;
   function selectMerchant(id: string) { setSelected(id); setReview(false); setError(''); setAmount(''); setReference('');setChallenge(null);setOtp(''); }
-  function lookupMerchant(e:FormEvent){e.preventDefault();const found=operator==='PlayGo'?DEMO_MERCHANTS.find(m=>m.id===search.trim().toUpperCase()):undefined;if(found){selectMerchant(found.id);setError('')}else{setSelected(null);setError('Merchant not found. Check operator and ID.')}}
+  function lookupMerchant(e:FormEvent){e.preventDefault();const found=operator==='PlayGo'?merchants.find(m=>m.id===search.trim()):undefined;if(found){selectMerchant(found.id);setError('')}else{setSelected(null);setError('Merchant not found. Check operator and ID.')}}
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!merchant || !Number.isSafeInteger(value) || value < 1 || value > 5000000) { setError('Enter a valid whole-number amount in TZS.'); return; }
@@ -52,7 +47,7 @@ export function MerchantPage({ account, userId, supabase }: { account: string; u
     <div className="pg-merchant-balance"><span>Available wallet balance</span><strong>TZS {balance===null?'Loading…':balance.toLocaleString('en-TZ')}</strong></div>
     {!review ? <>
       <div className="pg-merchant-discovery"><div className="pg-merchant-methods"><button type="button" onClick={()=>setScanOpen(v=>!v)}>▣ Scan QR</button><button type="button" onClick={()=>setScanOpen(false)}>⌕ Merchant ID</button></div>
-      {scanOpen?<MerchantQrScanner onScan={id=>{setScanOpen(false);setOperator('PlayGo');const code=id.match(/PGM[0-9]{4}/i)?.[0]?.toUpperCase()||id.trim().toUpperCase();setSearch(code);const found=DEMO_MERCHANTS.find(m=>m.id===code);if(found){selectMerchant(found.id)}else{setSelected(null);setError('Merchant not found.')}}} onClose={()=>setScanOpen(false)}/>:<form className="pg-form" onSubmit={lookupMerchant}><label htmlFor="merchant-operator">Select operator</label><select id="merchant-operator" value={operator} onChange={e=>{setOperator(e.target.value);setSelected(null)}}><option value="PlayGo">PlayGo Merchant</option><option value="M-Pesa">M-Pesa</option><option value="Mixx">Mixx by Yas</option><option value="Airtel Money">Airtel Money</option><option value="HaloPesa">HaloPesa</option></select><label htmlFor="merchant-search">Merchant ID</label><input id="merchant-search" value={search} onChange={e=>{setSearch(e.target.value);setSelected(null)}} placeholder="PGM1002" required/><button type="submit" className="pg-button">Search Merchant →</button></form>}
+      {scanOpen?<MerchantQrScanner onScan={id=>{setScanOpen(false);setOperator('PlayGo');const code=id.match(/(?:^|[^0-9])([0-9]{8})(?:[^0-9]|$)/)?.[1]||id.trim();setSearch(code);const found=merchants.find(m=>m.id===code);if(found){selectMerchant(found.id)}else{setSelected(null);setError('Merchant not found.')}}} onClose={()=>setScanOpen(false)}/>:<form className="pg-form" onSubmit={lookupMerchant}><label htmlFor="merchant-operator">Select operator</label><select id="merchant-operator" value={operator} onChange={e=>{setOperator(e.target.value);setSelected(null)}}><option value="PlayGo">PlayGo Merchant</option><option value="M-Pesa">M-Pesa</option><option value="Mixx">Mixx by Yas</option><option value="Airtel Money">Airtel Money</option><option value="HaloPesa">HaloPesa</option></select><label htmlFor="merchant-search">Merchant ID</label><input id="merchant-search" value={search} onChange={e=>{setSearch(e.target.value);setSelected(null)}} placeholder="e.g. 10001002" inputMode="numeric" maxLength={8} pattern="[0-9]{8}" required/><button type="submit" className="pg-button">Search Merchant →</button></form>}
       {merchant&&<div className="pg-merchant-verified"><span className="pg-merchant-avatar">{merchant.initials}</span><div><strong>{merchant.name}</strong><small>{merchant.id} · {merchant.category}</small><span>✓ Merchant found</span></div></div>}</div>
       {merchant && <form className="pg-form" onSubmit={submit}>
         <h2 className="pg-merchant-subtitle">Payment details</h2>

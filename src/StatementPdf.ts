@@ -7,7 +7,7 @@ const money=(value:number)=>Math.abs(value).toLocaleString('en-US',{maximumFract
 const date=(value:string)=>new Date(value).toLocaleDateString('en-GB');
 const rgb=(hex:string)=>{const c=hex.replace('#','');return [0,2,4].map(i=>(parseInt(c.slice(i,i+2),16)/255).toFixed(3)).join(' ')};
 const ink='#18202E',muted='#697386',red='#E51A2B',line='#DCE2E9',soft='#F4F6F9';
-export function downloadAccountStatementPdf(account:string,holder:string,transactions:StatementTransaction[],closingBalance:number,fromDate:string,toDate:string){
+export function downloadAccountStatementPdf(account:string,holder:string,transactions:StatementTransaction[],closingBalance:number,fromDate:string,toDate:string,institution:string,course:string,admissionNumber:string){
  const all=[...transactions].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()||a.id.localeCompare(b.id));
  const begin=new Date(fromDate+'T00:00:00').getTime(),end=new Date(toDate+'T23:59:59.999').getTime();
  const selected=all.filter(t=>{const time=new Date(t.created_at).getTime();return time>=begin&&time<=end});
@@ -31,18 +31,21 @@ export function downloadAccountStatementPdf(account:string,holder:string,transac
   rule(40,735,572,red);
   txt('ACCOUNT HOLDER',42,714,8,true,muted);txt(holder.slice(0,52),42,696,12,true);
   txt('PLAYGO ACCOUNT',333,714,8,true,muted);txt(account,333,696,12,true);
-  txt('STATEMENT PERIOD',42,669,8,true,muted);txt(date(fromDate)+' - '+date(toDate),42,653,10,true);
-  txt('ISSUED ON',333,669,8,true,muted);txt(new Date().toLocaleString('en-GB'),333,653,9);
-  stroke(40,638,532,108);
-  fill(41,582,530,55,soft);
-  txt('OPENING BALANCE',53,620,8,true,muted);txt('TOTAL CREDITS',195,620,8,true,muted);txt('TOTAL DEBITS',333,620,8,true,muted);txt('CLOSING BALANCE',458,620,8,true,muted);
-  txt('TZS '+money(opening),53,598,10,true);txt('TZS '+money(credits),195,598,10,true);txt('TZS '+money(debits),333,598,10,true);txt('TZS '+money(ending),458,598,10,true);
-  txt('TRANSACTION DETAILS',42,558,12,true);
-  fill(40,518,532,27,ink);
+  txt('INSTITUTION',42,673,8,true,muted);txt(institution.slice(0,52),42,659,9,true);
+  txt('COURSE',42,642,8,true,muted);txt(course.slice(0,58),42,628,9,true);
+  txt('ADMISSION NUMBER',333,673,8,true,muted);txt(admissionNumber.slice(0,35),333,659,9,true);
+  txt('STATEMENT PERIOD',42,610,8,true,muted);txt(date(fromDate)+' - '+date(toDate),42,596,9,true);
+  txt('ISSUED ON',333,610,8,true,muted);txt(new Date().toLocaleString('en-GB'),333,596,9);
+  stroke(40,583,532,165);
+  fill(41,527,530,55,soft);
+  txt('OPENING BALANCE',53,566,8,true,muted);txt('TOTAL CREDITS',195,566,8,true,muted);txt('TOTAL DEBITS',333,566,8,true,muted);txt('CLOSING BALANCE',458,566,8,true,muted);
+  txt('TZS '+money(opening),53,544,10,true);txt('TZS '+money(credits),195,544,10,true);txt('TZS '+money(debits),333,544,10,true);txt('TZS '+money(ending),458,544,10,true);
+  txt('TRANSACTION DETAILS',42,504,12,true);
+  fill(40,464,532,27,ink);
   const columns=[40,111,287,348,422,496,572];
   const labels=['DATE','DESCRIPTION','REFERENCE','CREDIT','DEBIT','BALANCE'];
-  for(let i=0;i<labels.length;i++)txt(labels[i],columns[i]+6,527,7,true,'#FFFFFF');
-  y=518;
+  for(let i=0;i<labels.length;i++)txt(labels[i],columns[i]+6,473,7,true,'#FFFFFF');
+  y=464;
  };
  const continued=()=>{
   fill(0,805,612,37,red);txt('Play',40,767,25,true);txt('Go',92,767,25,true,red);txt('ACCOUNT STATEMENT  /  CONTINUED',255,769,12,true);

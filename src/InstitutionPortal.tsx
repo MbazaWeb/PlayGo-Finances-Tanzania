@@ -1,10 +1,11 @@
+import {SupportInbox} from './Services';
 import {useEffect,useState,type FormEvent} from 'react';
 import {Link,Navigate,useNavigate} from 'react-router-dom';
 import type {Session,SupabaseClient} from '@supabase/supabase-js';
 import './admin.css';
 
 type Institution={id:string;name:string;code:string|null;email:string|null;phone:string|null;address:string|null;region:string|null;website:string|null;contact_person:string|null;admin_username:string|null};
-type Section='dashboard'|'requests'|'students'|'courses'|'fees'|'payments'|'heslb'|'profile';
+type Section='dashboard'|'requests'|'students'|'courses'|'fees'|'payments'|'heslb'|'inquiries'|'profile';
 function isInstitutionAdmin(session:Session|null){return session?.user.app_metadata?.playgo_role==='institution_admin'&&typeof session.user.app_metadata?.institution_id==='string';}
 
 export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;session:Session|null}){
@@ -49,6 +50,7 @@ const navItems:{id:Section;label:string;icon:string}[]=[
  {id:'fees',label:'Course Fees',icon:'▥'},
  {id:'payments',label:'Payments',icon:'▤'},
  {id:'heslb',label:'HESLB Disbursements',icon:'◎'},
+ {id:'inquiries',label:'Inquiries',icon:'✉'},
  {id:'profile',label:'Institution Profile',icon:'⚙'}
 ];
 const card:React.CSSProperties={background:'#fff',border:'1px solid #e8ecf2',borderRadius:14,padding:24,boxShadow:'0 4px 20px #15243a05'};
@@ -238,6 +240,7 @@ export default function InstitutionPortal({supabase,session}:{supabase:SupabaseC
      <section style={card}><h2>Transaction History</h2><p style={{...muted}}>Latest 100 transactions for students enrolled at this institution.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:650}}><thead><tr style={{textAlign:'left'}}>{['Date','Student','Type','Amount','Note'].map(h=><th key={h} style={{padding:12,borderBottom:'1px solid #ddd'}}>{h}</th>)}</tr></thead><tbody>{transactions.map(t=><tr key={t.id}><td style={{padding:12}}>{new Date(t.created_at).toLocaleDateString('en-TZ')}</td><td style={{padding:12}}>{names.get(t.user_id)||'Student'}</td><td style={{padding:12}}>{t.kind}</td><td style={{padding:12}}>{money(t.amount_tzs)}</td><td style={{padding:12}}>{t.note||'—'}</td></tr>)}</tbody></table>{!transactions.length&&<p style={muted}>No transactions found.</p>}</div></section>
      <p style={muted}></p>
     </div>}
+    {section==='inquiries'&&<SupportInbox supabase={supabase} userId={session.user.id} role="institution" institutionId={institutionId}/>}
     {section==='profile'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:18}}>
      <section style={card}><h2>Institution Details</h2><dl>{([['Institution',institution.name],['Code',institution.code],['Email',institution.email],['Phone',institution.phone],['Region',institution.region],['Address',institution.address],['Website',institution.website],['Contact Person',institution.contact_person]] as [string,string|null][]).map(([key,value])=><div key={key} style={{padding:'12px 0',borderBottom:'1px solid #e8edf4'}}><dt style={muted}>{key}</dt><dd style={{margin:'5px 0 0',fontWeight:600}}>{value||'Not provided'}</dd></div>)}</dl><p style={muted}>Contact PlayGo Platform Admin to update official institution details.</p></section>
      <section style={card}><h2>Administrator Account</h2><p><strong>Username</strong><br/>{institution.admin_username||'Not provided'}</p><p><strong>Login email</strong><br/>{session.user.email}</p><p><strong>Access role</strong><br/>Institution Administrator</p><button type="button" style={action} onClick={async()=>{if(!session.user.email)return;const {error:e}=await supabase.auth.resetPasswordForEmail(session.user.email,{redirectTo:window.location.origin+'/institution/login'});setNotice(e?'Password reset failed: '+e.message:'Password reset instructions sent if the email is eligible.');}}>Request Password Reset Email</button><p style={muted}>Password reset requires a configured Supabase email service and redirect URL.</p></section>

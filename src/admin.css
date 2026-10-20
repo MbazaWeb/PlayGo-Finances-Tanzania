@@ -30,3 +30,38 @@
 .pga-admin-breakdown span{color:#68768b}
 .pga-admin-breakdown b{color:#1c304e;text-align:right}
 @media(max-width:900px){.pga-admin-finance-grid{grid-template-columns:1fr}.pga-admin-hero{padding:23px}.pga-admin-hero h2{font-size:23px}}
+
+/* Institution dashboard */
+.pga-advanced-dashboard{display:grid;gap:22px}
+.pga-dash-header,.pga-dash-section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pga-dash-header h2{font-size:25px;margin:6px 0 4px;color:#182237;line-height:1.25}
+.pga-dash-header p,.pga-dash-section-head p{margin:4px 0 0;color:#788495;font-size:13px}
+.pga-dash-kicker{font-size:10px;font-weight:800;letter-spacing:2px;color:#e32235}
+.pga-dash-header button,.pga-dash-section-head button,.pga-dash-admissions button{padding:8px 13px;min-height:36px;font-size:12px;border-radius:9px}
+.pga-dash-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}
+.pga-dash-kpis article{position:relative;min-width:0;background:white;border:1px solid #e7ebf1;border-radius:15px;padding:21px;display:grid;gap:10px;box-shadow:0 4px 15px #192a4006}
+.pga-dash-kpis article>span{font-size:12px;color:#7b8797;font-weight:650}
+.pga-dash-kpis article>strong{font-size:clamp(20px,2vw,28px);font-weight:800;color:#1b2638;overflow-wrap:anywhere;letter-spacing:-.04em}
+.pga-dash-kpis article>small{font-size:11px;color:#8792a0}
+.pga-kpi-symbol{position:absolute;right:17px;top:16px;color:#e32235;background:#fff0f1;border-radius:9px;width:29px;height:29px;display:grid;place-items:center;font-size:16px}
+.pga-dash-visuals{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(275px,1fr);gap:18px}
+.pga-dash-visuals .pga-card{min-width:0}
+.pga-dash-section-head h3{margin:0;font-size:17px;color:#182237}
+.pga-dash-section-head select{font:inherit;font-size:12px;border:1px solid #dfe4eb;border-radius:9px;padding:8px;background:white;color:#253148}
+.pga-dash-bars{height:265px;display:flex;align-items:stretch;gap:12px;padding:28px 2px 0}
+.pga-dash-bar-item{min-width:0;flex:1;display:flex;flex-direction:column;align-items:center;gap:9px}
+.pga-dash-bar-value{height:29px;display:flex;align-items:flex-end;text-align:center;color:#7a8696;font-size:10px;white-space:nowrap}
+.pga-dash-bar-track{width:100%;max-width:72px;flex:1;display:flex;align-items:flex-end;background:linear-gradient(0deg,#f5f7fa,#fff);border-bottom:1px solid #e4e8ee;border-radius:7px 7px 0 0;overflow:hidden}
+.pga-dash-bar-fill{width:100%;background:linear-gradient(0deg,#e32235,#fb7b85);border-radius:7px 7px 0 0;transition:height .2s}
+.pga-dash-bar-item small{font-size:11px;color:#778294}
+.pga-dash-admissions{display:flex;flex-direction:column;gap:18px}
+.pga-dash-donut{width:164px;height:164px;border-radius:50%;display:grid;place-items:center;margin:0 auto}
+.pga-dash-donut>div{width:117px;height:117px;background:white;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.pga-dash-donut strong{font-size:31px;color:#192537}.pga-dash-donut span{font-size:12px;color:#7d8896}
+.pga-dash-legend{display:grid;gap:10px}
+.pga-dash-legend>div{display:flex;align-items:center;justify-content:space-between;font-size:12px}
+.pga-dash-legend>div>span{display:flex;align-items:center;gap:9px;color:#677587}
+.pga-dash-legend i{display:inline-block;width:9px;height:9px;border-radius:50%}
+.pga-dash-recent .pga-table-scroll{margin-top:18px}
+@media(max-width:1150px){.pga-dash-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.pga-dash-visuals{grid-template-columns:1fr}}
+@media(max-width:620px){.pga-dash-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pga-dash-kpis article{padding:15px}.pga-kpi-symbol{display:none}.pga-dash-kpis article>strong{font-size:19px}.pga-dash-bars{gap:5px;height:220px}.pga-dash-bar-value{font-size:9px;white-space:normal;overflow-wrap:anywhere}.pga-dash-header h2{font-size:21px}}

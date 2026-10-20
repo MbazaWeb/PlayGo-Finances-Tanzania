@@ -312,107 +312,83 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  
  <footer className="pg-demo-footer">Demo App</footer></section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
 }
-function FeeInformation({session}:{session:Session}) {
- const [fees,setFees]=useState<{institution:string;course:string;academicYear:string;studyYear:number;amount:number;confirmed:number;demoPaid:number;institutionId:string;courseId:string}[]>([]);
- const [message,setMessage]=useState('Loading your approved course fees…');
- const [amounts,setAmounts]=useState<Record<string,string>>({});
- const [paying,setPaying]=useState(false);
- const [paymentMessage,setPaymentMessage]=useState('');
- const [refreshKey,setRefreshKey]=useState(0);
- const [walletBalance,setWalletBalance]=useState<number|null>(null);
- const [walletError,setWalletError]=useState('');
- const walletReadVersion=useRef(0);
- const [lastReceipt,setLastReceipt]=useState<{id:string;amount:number;balance:number}|null>(null);
- const [reviewFee,setReviewFee]=useState<{fee:typeof fees[number];amount:number}|null>(null);
+function FeeInformation({session}:{session:Session}){
+ type Approved={institutionId:string;courseId:string;institution:string;course:string};
+ type FeePayment={id:string;amount_tzs:number;created_at:string;institution_id:string;course_id:string};
+ const [approved,setApproved]=useState<Approved[]>([]);
+ const [payments,setPayments]=useState<FeePayment[]>([]);
+ const [amount,setAmount]=useState('');
+ const [selected,setSelected]=useState('');
+ const [balance,setBalance]=useState<number|null>(null);
+ const [message,setMessage]=useState('Loading your admission verification…');
+ const [busy,setBusy]=useState(false);
+ const [review,setReview]=useState<{amount:number;entry:Approved}|null>(null);
  const [otp,setOtp]=useState('');
- const [otpChallenge,setOtpChallenge]=useState<{code:string;expires:number}|null>(null);
- useEffect(()=>{let active=true;const version=++walletReadVersion.current;
-  async function readWallet(){if(!supabase)return;const {data,error}=await supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',session.user.id).maybeSingle();
-   if(!active||version!==walletReadVersion.current)return;
-   if(error){setWalletError('Wallet balance unavailable: '+error.message);return;}
-   setWalletError('');setWalletBalance(Number(data?.balance_tzs??0));
-  }void readWallet();return()=>{active=false};},[session.user.id,refreshKey]);
+ const [challenge,setChallenge]=useState<{code:string;expires:number}|null>(null);
+ const [receipt,setReceipt]=useState<{id:string;amount:number;balance:number;date:string}|null>(null);
+ const [refresh,setRefresh]=useState(0);
  useEffect(()=>{let active=true;async function load(){
   if(!supabase)return;
-  const {data:requests,error:requestError}=await supabase.from('pg_student_requests').select('institution_id,course_id,status').eq('user_id',session.user.id).eq('status','approved');
-  if(!active)return;
-  if(requestError){setMessage('Unable to check institution approval: '+requestError.message);return;}
-  const approved=(requests||[]).filter(x=>x.course_id);
-  if(!approved.length){setMessage('No approved course was found for this signed-in student account. Please confirm you are using the same account approved by your institution.');return;}
-  const institutionIds=[...new Set(approved.map(x=>x.institution_id))];
-  const courseIds=[...new Set(approved.map(x=>String(x.course_id)))];
-  const [enrollments,inst,courses,feeRows,credits,demoPayments]=await Promise.all([
-   supabase.from('pg_enrollments').select('institution_id,active').eq('user_id',session.user.id).eq('active',true).in('institution_id',institutionIds),
-   supabase.from('pg_institutions').select('id,name').in('id',institutionIds),
-   supabase.from('pg_courses').select('id,name').in('id',courseIds),
-   supabase.from('pg_course_fees').select('course_id,institution_id,academic_year,study_year,amount_tzs').in('course_id',courseIds).order('academic_year',{ascending:false}),
-   supabase.from('pg_student_fee_credits').select('institution_id,academic_year,amount_tzs').eq('user_id',session.user.id).in('institution_id',institutionIds),
-   supabase.from('pg_demo_fee_payments').select('institution_id,course_id,academic_year,study_year,amount_tzs').eq('user_id',session.user.id)
+  const [req,en,wallet,history]=await Promise.all([
+   supabase.from('pg_student_requests').select('institution_id,course_id,status').eq('user_id',session.user.id).eq('status','approved'),
+   supabase.from('pg_enrollments').select('institution_id,active').eq('user_id',session.user.id).eq('active',true),
+   supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',session.user.id).maybeSingle(),
+   supabase.from('pg_demo_fee_payments').select('id,amount_tzs,created_at,institution_id,course_id').eq('user_id',session.user.id).order('created_at',{ascending:false}).limit(1000)
   ]);
   if(!active)return;
-  const failed=[enrollments,inst,courses,feeRows,credits,demoPayments].find(x=>x.error)?.error;
-  if(failed){setMessage('Unable to load course fees: '+failed.message);return;}
-  const activeIds=new Set((enrollments.data||[]).map(x=>x.institution_id));
-  if(!approved.some(x=>activeIds.has(x.institution_id))){setMessage('Your course is approved, but the current student session has no active enrollment visible. Please sign out, sign in again, and contact your institution if this persists.');return;}
-  const found=(feeRows.data||[]).filter(f=>approved.some(x=>x.course_id===f.course_id&&x.institution_id===f.institution_id)&&activeIds.has(f.institution_id)).map(f=>({
-   institution:inst.data?.find(i=>i.id===f.institution_id)?.name||'Institution',institutionId:f.institution_id,courseId:f.course_id,
-   course:courses.data?.find(c=>c.id===f.course_id)?.name||'Approved course',
-   academicYear:f.academic_year,studyYear:Number(f.study_year),amount:Number(f.amount_tzs),
-   confirmed:(credits.data||[]).filter(c=>c.institution_id===f.institution_id&&c.academic_year===f.academic_year).reduce((n,c)=>n+Number(c.amount_tzs),0),
-   demoPaid:(demoPayments.data||[]).filter(c=>c.institution_id===f.institution_id&&c.course_id===f.course_id&&c.academic_year===f.academic_year&&c.study_year===f.study_year).reduce((n,c)=>n+Number(c.amount_tzs),0)
-  }));
-  setFees(found);
-  setMessage(found.length?'':'Your institution has approved your course but has not configured a course fee schedule yet.');
- }void load();return()=>{active=false};},[session.user.id,refreshKey]);
- function reviewPayment(f:typeof fees[number]){
-  const key=f.courseId+'-'+f.academicYear+'-'+f.studyYear;
-  const amount=Number(amounts[key]);const remaining=Math.max(0,f.amount-f.confirmed-f.demoPaid);
-  if(!Number.isSafeInteger(amount)||amount<1||amount>remaining){setPaymentMessage('Enter a valid amount within the remaining fee balance.');return;}
-  if(walletBalance===null||amount>walletBalance){setPaymentMessage('Insufficient demo wallet balance. Add demo funds to the PlayGo Wallet first.');return;}
+  const error=[req,en,wallet,history].find(x=>x.error)?.error;
+  if(error){setMessage('Unable to load payment information: '+error.message);return;}
+  setBalance(Number(wallet.data?.balance_tzs??0));setPayments((history.data||[]) as FeePayment[]);
+  const activeIds=new Set((en.data||[]).map(x=>x.institution_id));
+  const verified=(req.data||[]).filter(x=>x.course_id&&activeIds.has(x.institution_id));
+  if(!verified.length){setApproved([]);setMessage('Your institution must approve your admission before tuition payments are available.');return;}
+  const [institutions,courses]=await Promise.all([
+   supabase.from('pg_institutions').select('id,name').in('id',[...new Set(verified.map(x=>x.institution_id))]),
+   supabase.from('pg_courses').select('id,name').in('id',[...new Set(verified.map(x=>x.course_id as string))])
+  ]);
+  if(!active)return;
+  if(institutions.error||courses.error){setMessage('Unable to load approved course: '+(institutions.error?.message||courses.error?.message));return;}
+  const entries=verified.map(x=>({institutionId:x.institution_id,courseId:x.course_id as string,institution:institutions.data?.find(i=>i.id===x.institution_id)?.name||'Institution',course:courses.data?.find(c=>c.id===x.course_id)?.name||'Approved course'}));
+  setApproved(entries);setSelected(old=>entries.some(e=>e.institutionId+'|'+e.courseId===old)?old:entries[0].institutionId+'|'+entries[0].courseId);setMessage('');
+ }void load();return()=>{active=false};},[session.user.id,refresh]);
+ const current=approved.find(e=>e.institutionId+'|'+e.courseId===selected);
+ const scoped=payments.filter(p=>p.institution_id===current?.institutionId&&p.course_id===current?.courseId);
+ const total=scoped.reduce((n,p)=>n+Number(p.amount_tzs),0);
+ const months=Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-5+i);const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');return {key,label:d.toLocaleDateString('en-GB',{month:'short'}),value:scoped.filter(p=>p.created_at.slice(0,7)===key).reduce((n,p)=>n+Number(p.amount_tzs),0)};});
+ const max=Math.max(1,...months.map(m=>m.value));
+ function startReview(){
+  const n=Number(amount);
+  if(!current||!Number.isSafeInteger(n)||n<1||n>5000000){setMessage('Enter a valid amount between TZS 1 and 5,000,000.');return;}
+  if(balance===null||n>balance){setMessage('Insufficient demo wallet balance.');return;}
   const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,'0');
-  setReviewFee({fee:f,amount});setOtp('');setOtpChallenge({code,expires:Date.now()+45000});setPaymentMessage('');
+  setReview({amount:n,entry:current});setOtp('');setChallenge({code,expires:Date.now()+45000});setMessage('');
  }
- async function confirmPayment(){
-  if(!supabase||paying||!reviewFee||!otpChallenge)return;
-  if(Date.now()>otpChallenge.expires||otp!==otpChallenge.code){setPaymentMessage('Invalid or expired demo OTP. Generate a new OTP.');return;}
-  const {fee:f,amount}=reviewFee;setPaying(true);setPaymentMessage('Processing demo payment…');
-  const txId=crypto.randomUUID();const result=await supabase.rpc('pg_pay_demo_course_fee',{p_id:txId,p_institution_id:f.institutionId,p_course_id:f.courseId,p_academic_year:f.academicYear,p_study_year:f.studyYear,p_amount:amount});
-  setPaying(false);
-  if(result.error){setPaymentMessage('Payment failed: '+result.error.message);return;}
-  // The RPC returns the authoritative post-debit wallet balance. Invalidate earlier reads before updating UI.
-  walletReadVersion.current+=1;
-  const newBalance=Number(result.data);
-  setWalletBalance(newBalance);setWalletError('');setLastReceipt({id:txId,amount,balance:newBalance});
-  setPaymentMessage('Payment recorded successfully.');
-  setReviewFee(null);setOtpChallenge(null);setOtp('');setAmounts(prev=>({...prev,[f.courseId+'-'+f.academicYear+'-'+f.studyYear]:''}));setRefreshKey(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
+ async function confirm(){
+  if(!supabase||busy||!review||!challenge)return;
+  if(Date.now()>challenge.expires||otp!==challenge.code){setMessage('Invalid or expired demo OTP. Please retry.');return;}
+  setBusy(true);setMessage('Processing demo payment…');
+  const txId=crypto.randomUUID();const now=new Date().toISOString();
+  const year=String(new Date().getFullYear());
+  const result=await supabase.rpc('pg_pay_demo_course_fee',{p_id:txId,p_institution_id:review.entry.institutionId,p_course_id:review.entry.courseId,p_academic_year:year,p_study_year:1,p_amount:review.amount});
+  setBusy(false);
+  if(result.error){setMessage('Payment failed: '+result.error.message);return;}
+  setReceipt({id:txId,amount:review.amount,balance:Number(result.data),date:now});
+  setReview(null);setChallenge(null);setOtp('');setAmount('');setMessage('Demo payment recorded successfully.');setRefresh(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
- return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Fee</h1>
- 
+ return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Tuition Fee</h1>
+ <p>Choose how much to pay. PlayGo tracks only payments made through this app, not your institution's official fee balance.</p>
  {message&&<p role="status">{message}</p>}
- <div className="pg-feature-card" style={{padding:'20px 22px',margin:'22px 0',borderRadius:16,background:'#171717',color:'#fff'}}><div style={{fontSize:12,letterSpacing:1.3,opacity:.8}}>PLAYGO WALLET</div><div style={{fontSize:32,fontWeight:750,margin:'10px 0 4px'}}>{walletBalance===null?'Loading…':'TZS '+walletBalance.toLocaleString('en-TZ')}</div><div style={{fontSize:13,opacity:.8}}>Available balance · Updated after every payment</div></div>
- {walletError&&<p role="alert">{walletError}</p>}
- {fees.map((f,i)=><section className="pg-details" key={f.courseId+'-'+f.academicYear+'-'+f.studyYear}>
- <h2>{f.course}</h2>
- <p><strong>Institution</strong><span>{f.institution}</span></p>
- <p><strong>Academic Year</strong><span>{f.academicYear} · Study Year {f.studyYear}</span></p>
- <p><strong>Course Fee</strong><span>TZS {f.amount.toLocaleString('en-TZ')}</span></p>
- <p><strong>Confirmed Fee Credits</strong><span>TZS {f.confirmed.toLocaleString('en-TZ')}</span></p>
- <p><strong>Wallet Fee Payments</strong><span>TZS {f.demoPaid.toLocaleString('en-TZ')}</span></p>
- <p><strong>Remaining Fee Balance</strong><span style={{fontWeight:750,color:'#dc162a'}}>TZS {Math.max(0,f.amount-f.confirmed-f.demoPaid).toLocaleString('en-TZ')}</span></p>
- <div style={{height:9,borderRadius:20,background:'#f1f2f5',overflow:'hidden',margin:'12px 0 22px'}}><div style={{height:'100%',width:Math.min(100,(f.confirmed+f.demoPaid)/Math.max(1,f.amount)*100)+'%',background:'#e51a2b',borderRadius:20}}/></div>
- <div className="pg-form" style={{margin:'18px 0'}}><label htmlFor={'fee-amount-'+i}>Amount to pay (TZS)</label><input id={'fee-amount-'+i} type="number" min="1" step="1" max={Math.max(0,f.amount-f.confirmed-f.demoPaid)} placeholder="Enter any amount up to your remaining fee" value={amounts[f.courseId+'-'+f.academicYear+'-'+f.studyYear]||''} onChange={e=>setAmounts(prev=>({...prev,[f.courseId+'-'+f.academicYear+'-'+f.studyYear]:e.target.value}))}/><button type="button" className="pg-button" disabled={paying||f.amount<=f.confirmed+f.demoPaid} onClick={()=>reviewPayment(f)}>Review & Verify OTP →</button></div>
- 
- 
- </section>)}
- {reviewFee&&<section className="pg-feature-card pg-fee-review" aria-label="Review fee payment">
- <div className="pg-fee-review-head"><div><p className="pg-eyebrow">PAYMENT CONFIRMATION</p><h2>Review Fee Payment</h2><p>Verify your details before confirming.</p></div><span className="pg-fee-review-icon" aria-hidden="true">✓</span></div>
- <div className="pg-fee-review-amount"><span>Amount to pay</span><strong>TZS {reviewFee.amount.toLocaleString('en-TZ')}</strong><small>PlayGo Wallet</small></div>
- <div className="pg-fee-review-details"><div><span>Course</span><strong>{reviewFee.fee.course}</strong></div><div><span>Institution</span><strong>{reviewFee.fee.institution}</strong></div><div><span>Wallet balance</span><strong>TZS {(walletBalance??0).toLocaleString('en-TZ')}</strong></div><div className="pg-fee-review-remaining"><span>Balance after payment</span><strong>TZS {((walletBalance??0)-reviewFee.amount).toLocaleString('en-TZ')}</strong></div></div>
- <div className="pg-fee-review-verify"><h3>Verify payment</h3><p>Enter your 6-digit verification code to authorize this payment.</p><div className="pg-fee-review-code"><span>Verification code</span><strong>{otpChallenge?.code||'------'}</strong><small>Expires after 45 seconds</small></div><label htmlFor="fee-otp">6-digit OTP</label><input id="fee-otp" type="text" autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]*" maxLength={6} placeholder="Enter 6-digit code" value={otp} onChange={e=>setOtp(e.target.value.replace(/[^0-9]/g,'').slice(0,6))}/></div>
- <div className="pg-fee-review-actions"><button type="button" className="pg-button" disabled={paying||otp.length!==6} onClick={()=>void confirmPayment()}>{paying?'Processing…':'Confirm Fee Payment →'}</button><button type="button" className="pg-button pg-outline" disabled={paying} onClick={()=>{setReviewFee(null);setOtpChallenge(null);setOtp('');}}>Cancel</button></div>
- </section>}
-  {lastReceipt&&<section className="pg-feature-card pg-receipt-prompt" role="status"><h2>Payment Successful</h2><p><strong>TZS {lastReceipt.amount.toLocaleString('en-TZ')}</strong> paid successfully.</p><p>Receipt reference: {lastReceipt.id}</p><p>Choose how to keep your receipt:</p><div className="pg-notify-actions"><button type="button" onClick={()=>downloadTransactionReceipt({id:lastReceipt.id,kind:'fee_payment',amount_tzs:lastReceipt.amount,delta_tzs:-lastReceipt.amount,note:'Course fee payment',created_at:new Date().toISOString()},String(session.user.user_metadata?.playgo_account||''),String(session.user.user_metadata?.full_name||session.user.email||'Student'))}>Download / Print PDF Receipt</button><button type="button" onClick={()=>void shareTransactionReceipt({id:lastReceipt.id,kind:'fee_payment',amount_tzs:lastReceipt.amount,delta_tzs:-lastReceipt.amount,note:'Course fee payment',created_at:new Date().toISOString()},String(session.user.user_metadata?.playgo_account||''),String(session.user.user_metadata?.full_name||session.user.email||'Student')).catch(()=>setPaymentMessage('Could not share receipt.'))}>Share Receipt</button></div><Link to="/notifications">View transaction alerts →</Link></section>}
- {paymentMessage&&<p role="status">{paymentMessage}</p>}</Frame>;
+ <section className="pg-feature-card"><h2>PlayGo Wallet</h2><strong style={{fontSize:28}}>TZS {balance===null?'Loading…':balance.toLocaleString('en-TZ')}</strong><p>Available demo wallet balance</p></section>
+ {!!approved.length&&<><section className="pg-feature-card"><h2>Tuition Payment</h2>
+ <div className="pg-form"><label htmlFor="fee-institution">Verified institution and course</label><select id="fee-institution" value={selected} onChange={e=>setSelected(e.target.value)}>{approved.map(e=><option key={e.institutionId+'|'+e.courseId} value={e.institutionId+'|'+e.courseId}>{e.institution} — {e.course}</option>)}</select>
+ <label htmlFor="fee-amount">Amount to Pay (TZS)</label><input id="fee-amount" type="number" min="1" max="5000000" step="1" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Enter your preferred amount"/>
+ <button type="button" className="pg-button" disabled={busy||!!review} onClick={startReview}>Review & Verify OTP →</button></div></section>
+ <section className="pg-feature-card"><h2>Fee Payment Progress</h2><div className="pg-fee-grid"><p>Total Paid via PlayGo<b>TZS {total.toLocaleString('en-TZ')}</b></p><p>Payments<b>{scoped.length}</b></p></div>
+ <div className="pg-fee-trend" role="img" aria-label={months.map(m=>m.label+': TZS '+m.value).join(', ')}>{months.map(m=><div key={m.key} className="pg-fee-trend-month"><strong>{m.value?m.value.toLocaleString('en-TZ'):'—'}</strong><div className="pg-fee-trend-track"><div style={{height:(m.value?Math.max(5,m.value/max*100):0)+'%'}}/></div><small>{m.label}</small></div>)}</div>
+ <h3>Recent Payments</h3>{scoped.slice(0,8).map(p=><div key={p.id} className="pg-tx"><span>{new Date(p.created_at).toLocaleDateString('en-GB')}</span><strong>TZS {Number(p.amount_tzs).toLocaleString('en-TZ')}</strong></div>)}{!scoped.length&&<p>No tuition payments yet.</p>}</section></>}
+ {review&&<section className="pg-feature-card pg-fee-review"><h2>Review Fee Payment</h2><div className="pg-fee-review-amount"><span>Amount to pay</span><strong>TZS {review.amount.toLocaleString('en-TZ')}</strong></div><div className="pg-fee-review-details"><div><span>Institution</span><strong>{review.entry.institution}</strong></div><div><span>Course</span><strong>{review.entry.course}</strong></div><div><span>Wallet after payment</span><strong>TZS {((balance??0)-review.amount).toLocaleString('en-TZ')}</strong></div></div><div className="pg-fee-review-verify"><h3>Demo OTP Verification</h3><p>This code is displayed for demo testing only.</p><div className="pg-fee-review-code"><strong>{challenge?.code}</strong><small>Expires in 45 seconds</small></div><label htmlFor="fee-otp">Enter 6-digit OTP</label><input id="fee-otp" inputMode="numeric" maxLength={6} value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}/></div><div className="pg-fee-review-actions"><button type="button" className="pg-button" disabled={busy||otp.length!==6} onClick={()=>void confirm()}>{busy?'Processing…':'Confirm Demo Payment'}</button><button type="button" className="pg-button pg-outline" disabled={busy} onClick={()=>{setReview(null);setChallenge(null);setOtp('');}}>Cancel</button></div></section>}
+ {receipt&&<section className="pg-feature-card" role="status"><h2>Demo Payment Recorded</h2><p><strong>TZS {receipt.amount.toLocaleString('en-TZ')}</strong></p><p>Reference: {receipt.id}</p><p>This is a PlayGo demo record, not proof of university settlement.</p><button type="button" className="pg-button" onClick={()=>downloadTransactionReceipt({id:receipt.id,kind:'fee_payment',amount_tzs:receipt.amount,delta_tzs:-receipt.amount,note:'SIMULATED ONLY · Tuition fee',created_at:receipt.date},String(session.user.user_metadata?.playgo_account||''),String(session.user.user_metadata?.full_name||session.user.email||'Student'))}>Download Demo Receipt</button></section>}
+ </Frame>;
 }
 function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'quick-loan'|'transfer-bank'|'transaction-status'|'transaction-otp'|'history'}){
  const [account,setAccount]=useState<string|null>(null);

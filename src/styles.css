@@ -159,3 +159,19 @@
 .pg-panel .pg-receipt-actions .pg-button{display:inline-flex;width:auto;flex:0 1 auto;min-height:40px;padding:9px 15px;border-radius:9px;font-size:14px;font-weight:650;line-height:1.25;white-space:nowrap;margin:0}
 .pg-panel .pg-receipt-actions .pg-button+.pg-button{margin-top:0}
 @media(max-width:580px){.pg-panel .pg-receipt-actions{display:flex;gap:8px}.pg-panel .pg-receipt-actions .pg-button{min-height:40px;font-size:13px;padding:9px 12px;white-space:normal}}
+
+/* App-wide compact controls — consistent across student, merchant, admin and institution views */
+:root{--pg-control-height:38px;--pg-control-radius:9px}
+.pg-button,.pg-panel .pg-button,.pg-feature-card .pg-button,.pg-services-card .pg-button{width:auto;max-width:100%;min-height:var(--pg-control-height);padding:8px 14px;border-radius:var(--pg-control-radius);font-size:13px;line-height:1.3;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:7px;vertical-align:middle}
+.pg-form>.pg-button,.pg-panel>.pg-button,.pg-panel>.pg-outline,.pg-fee-review-actions>.pg-button,.pg-statement-card>.pg-button{align-self:flex-start;width:auto;min-height:40px}
+.pg-panel .pg-button+.pg-button{margin-top:0}
+.pg-fee-review-actions{display:flex;flex-wrap:wrap;gap:9px}
+.pg-fee-review-actions .pg-button{margin:0}
+.pg-merchant-methods button,.pg-bank-action,.pg-merchant-scanner .pg-button{min-height:40px;padding:8px 12px;font-size:13px;border-radius:9px}
+.pg-bank-card-actions{display:flex;flex-wrap:wrap;gap:9px}
+.pg-bank-card-actions .pg-bank-action{width:auto;min-height:39px}
+.pg-support .pg-button{width:auto;min-height:39px}
+.pg-support form>.pg-button{align-self:flex-start}
+.pg-panel button,.pg-panel a.pg-button{transition:background-color .15s,border-color .15s}
+.pg-panel button:focus-visible,.pg-panel a.pg-button:focus-visible{outline:2px solid #e7192e;outline-offset:2px}
+@media(max-width:600px){.pg-button,.pg-panel .pg-button,.pg-feature-card .pg-button{font-size:13px;min-height:38px;padding:8px 12px}.pg-fee-review-actions,.pg-bank-card-actions{gap:8px}}

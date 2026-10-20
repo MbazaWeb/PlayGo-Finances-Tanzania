@@ -200,8 +200,9 @@ type SupportInquiry={id:string;user_id:string;destination:'platform'|'institutio
 type SupportMessage={id:string;inquiry_id:string;sender_id:string;body:string;created_at:string};
 export function SupportInbox({supabase,userId,role,institutionId}:{supabase:SupabaseClient;userId:string;role:'student'|'admin'|'institution';institutionId?:string}){
  const [tickets,setTickets]=useState<SupportInquiry[]>([]),[messages,setMessages]=useState<SupportMessage[]>([]);
+ const [transactionId,setTransactionId]=useState(''),[transactionRows,setTransactionRows]=useState<{id:string;kind:string;created_at:string;amount_tzs:number}[]>([]);
  const [selected,setSelected]=useState(''),[destination,setDestination]=useState('platform'),[linkedInstitution,setLinkedInstitution]=useState(''),[institutions,setInstitutions]=useState<{id:string;name:string}[]>([]);
- const [category,setCategory]=useState(options[0]),[subject,setSubject]=useState(''),[body,setBody]=useState(''),[reply,setReply]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
+ const [category,setCategory]=useState(options[0]),[subject,setSubject]=useState(options[0]),[body,setBody]=useState(''),[reply,setReply]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
  async function refresh(){
   const query=supabase.from('pg_support_inquiries').select('id,user_id,destination,institution_id,category,subject,status,created_at,updated_at').order('created_at',{ascending:false}).limit(200);
   const result=await (role==='student'?query.eq('user_id',userId):role==='admin'?query.eq('destination','platform'):query.eq('institution_id',institutionId||''));
@@ -213,14 +214,15 @@ export function SupportInbox({supabase,userId,role,institutionId}:{supabase:Supa
   if(msgs.error)throw msgs.error;
   setMessages(msgs.data||[]);
  }
- useEffect(()=>{let active=true;async function load(){try{await refresh();if(role==='student'){const req=await supabase.from('pg_student_requests').select('institution_id').eq('user_id',userId).eq('status','approved');if(req.error)throw req.error;const ids=[...new Set((req.data||[]).map(x=>x.institution_id))];if(ids.length){const names=await supabase.from('pg_institutions').select('id,name').in('id',ids);if(names.error)throw names.error;if(active)setInstitutions(names.data||[])}}}catch(e){if(active)setError(e instanceof Error?e.message:String(e))}finally{if(active)setLoading(false)}}void load();return()=>{active=false}},[supabase,userId,role,institutionId]);
+ useEffect(()=>{let active=true;async function load(){try{await refresh();if(role==='student'){const req=await supabase.from('pg_student_requests').select('institution_id').eq('user_id',userId).eq('status','approved');if(req.error)throw req.error;const ids=[...new Set((req.data||[]).map(x=>x.institution_id))];if(ids.length){const names=await supabase.from('pg_institutions').select('id,name').in('id',ids);if(names.error)throw names.error;if(active)setInstitutions(names.data||[])}}const tx=await supabase.from('pg_demo_transactions').select('id,kind,created_at,amount_tzs').eq('user_id',userId).order('created_at',{ascending:false}).limit(150);if(tx.error)throw tx.error;if(active)setTransactionRows(tx.data||[]);}catch(e){if(active)setError(e instanceof Error?e.message:String(e))}finally{if(active)setLoading(false)}}void load();return()=>{active=false}},[supabase,userId,role,institutionId]);
  async function createTicket(e:FormEvent<HTMLFormElement>){e.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('');
   try{if(destination==='institution'&&!linkedInstitution)throw new Error('Select an institution.');
-   const q=await supabase.from('pg_support_inquiries').insert({user_id:userId,destination,institution_id:destination==='institution'?linkedInstitution:null,category,subject:subject.trim()}).select('id').single();
+   const selectedTx=transactionRows.find(t=>t.id===transactionId);
+   const q=await supabase.from('pg_support_inquiries').insert({user_id:userId,destination,institution_id:destination==='institution'?linkedInstitution:null,category,subject:subject.trim(),transaction_id:selectedTx?.id||null,transaction_date:selectedTx?.created_at||null,transaction_type:selectedTx?.kind||null}).select('id').single();
    if(q.error)throw q.error;
    const m=await supabase.from('pg_support_messages').insert({inquiry_id:q.data.id,sender_id:userId,body:body.trim()});
    if(m.error)throw m.error;
-   setSubject('');setBody('');setSelected(q.data.id);setNotice('Inquiry submitted successfully.');await refresh();
+   setSubject(options[0]);setBody('');setTransactionId('');setSelected(q.data.id);setNotice('Inquiry submitted successfully.');await refresh();
   }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
  }
  async function sendReply(e:FormEvent<HTMLFormElement>){e.preventDefault();if(!selected||!reply.trim()||busy)return;setBusy(true);setError('');try{
@@ -233,8 +235,8 @@ export function SupportInbox({supabase,userId,role,institutionId}:{supabase:Supa
  <label htmlFor="support-destination">Send inquiry to</label><select id="support-destination" value={destination} onChange={e=>setDestination(e.target.value)}><option value="platform">PlayGo Support</option><option value="institution" disabled={!institutions.length}>My Institution</option></select>
  {destination==='institution'&&<><label htmlFor="support-institution">Institution</label><select id="support-institution" value={linkedInstitution} onChange={e=>setLinkedInstitution(e.target.value)} required><option value="">Select institution</option>{institutions.map(i=><option value={i.id} key={i.id}>{i.name}</option>)}</select></>}
  <label htmlFor="support-category">Request type</label><select id="support-category" value={category} onChange={e=>setCategory(e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select>
- <label htmlFor="support-subject">Subject</label><input id="support-subject" required minLength={3} maxLength={150} value={subject} onChange={e=>setSubject(e.target.value)}/>
- <label htmlFor="support-description">Describe your inquiry</label><textarea id="support-description" required minLength={10} maxLength={2000} rows={4} value={body} onChange={e=>setBody(e.target.value)}/>
+ <label htmlFor="support-subject">Subject</label><select id="support-subject" required value={subject} onChange={e=>setSubject(e.target.value)}>{options.map(x=><option key={x} value={x}>{x}</option>)}</select>
+ <label htmlFor="support-transaction">Transaction reference (optional)</label><select id="support-transaction" value={transactionId} onChange={e=>setTransactionId(e.target.value)}><option value="">No transaction selected</option>{transactionRows.map(t=><option key={t.id} value={t.id}>{t.kind.replace(/_/g,' ')} · {new Date(t.created_at).toLocaleDateString('en-GB')} · TZS {Number(t.amount_tzs).toLocaleString('en-TZ')} · {t.id.slice(0,8)}</option>)}</select>{transactionId&&<div className="pg-details">{(()=>{const t=transactionRows.find(x=>x.id===transactionId);return t?<><p><strong>Transaction ID</strong><span>{t.id}</span></p><p><strong>Date</strong><span>{new Date(t.created_at).toLocaleString('en-GB')}</span></p><p><strong>Transaction type</strong><span>{t.kind.replace(/_/g,' ')}</span></p></>:null})()}</div>}<label htmlFor="support-description">Describe your inquiry</label><textarea id="support-description" required minLength={10} maxLength={2000} rows={4} value={body} onChange={e=>setBody(e.target.value)}/>
  <button className="pg-button" disabled={busy} type="submit">{busy?'Submitting…':'Send Inquiry'}</button></form>}
  {error&&<p className="pg-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
  <h3>{role==='student'?'My Inquiries':'Incoming Inquiries'}</h3>

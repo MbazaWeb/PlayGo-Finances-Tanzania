@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -74,13 +74,48 @@ export function MerchantPage({ account, userId, supabase }: { account: string; u
   </>;
 }
 
+type QRReader = {detect:(source:HTMLVideoElement|ImageBitmap)=>Promise<{rawValue:string}[]>};
+type QRReaderConstructor = new (options:{formats:string[]})=>QRReader;
 function MerchantQrScanner({onScan,onClose}:{onScan:(value:string)=>void;onClose:()=>void}){
+ const video=useRef<HTMLVideoElement>(null);
+ const [camera,setCamera]=useState(false);
  const [error,setError]=useState('');
+ useEffect(()=>{
+  if(!camera)return;
+  let running=true,stream:MediaStream|undefined,frame=0;
+  const Reader=(window as Window&{BarcodeDetector?:QRReaderConstructor}).BarcodeDetector;
+  if(!Reader){setError('This browser does not support QR detection. Try Chrome or enter the merchant ID.');setCamera(false);return;}
+  const reader=new Reader({formats:['qr_code']});
+  async function scan(){
+   if(!running)return;
+   try{if(video.current&&video.current.readyState>=2){const codes=await reader.detect(video.current);if(codes.length){onScan(codes[0].rawValue);return;}}}
+   catch{setError('Could not scan QR. Try again or enter the merchant ID.');}
+   if(running)frame=requestAnimationFrame(()=>{void scan();});
+  }
+  void(async()=>{
+   try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    if(!running){stream.getTracks().forEach(track=>track.stop());return;}
+    if(video.current){video.current.srcObject=stream;await video.current.play();}
+    void scan();
+   }catch{if(running){setError('Camera access unavailable. Allow camera permission or enter the merchant ID.');setCamera(false);}}
+  })();
+  return()=>{running=false;cancelAnimationFrame(frame);stream?.getTracks().forEach(track=>track.stop());};
+ },[camera,onScan]);
  async function read(file:File){
-  const Detector=(window as Window&{BarcodeDetector?:new(o:{formats:string[]})=>{detect:(source:ImageBitmap)=>Promise<{rawValue:string}[]>}}).BarcodeDetector;
-  if(!Detector){setError('QR reader unavailable. Enter merchant ID.');return}
+  setError('');
+  const Reader=(window as Window&{BarcodeDetector?:QRReaderConstructor}).BarcodeDetector;
+  if(!Reader){setError('QR detection unavailable. Enter the merchant ID.');return;}
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10485760){setError('Select a JPG, PNG or WebP image under 10 MB.');return;}
   const bitmap=await createImageBitmap(file);
-  try{const codes=await new Detector({formats:['qr_code']}).detect(bitmap);if(codes[0])onScan(codes[0].rawValue);else setError('QR not found.')}finally{bitmap.close()}
+  try{const codes=await new Reader({formats:['qr_code']}).detect(bitmap);if(codes.length)onScan(codes[0].rawValue);else setError('No QR code found.');}finally{bitmap.close();}
  }
- return <section className="pg-merchant-scanner"><strong>Scan Merchant QR</strong><label>Take photo or upload QR<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void read(f).catch(()=>setError('Unable to read QR.'))}}/></label><button type="button" onClick={onClose}>Close</button>{error&&<p role="alert">{error}</p>}</section>
+ return <section className="pg-merchant-scanner" aria-label="Scan merchant QR">
+  <div className="pg-merchant-scanner-head"><strong>Scan Merchant QR</strong><button type="button" onClick={onClose} aria-label="Close scanner">✕</button></div>
+  <p>Point your camera at the merchant QR code.</p>
+  {camera&&<video ref={video} muted playsInline className="pg-merchant-video"/>}
+  <button type="button" className="pg-button" onClick={()=>{setError('');setCamera(v=>!v);}}>{camera?'Stop Camera':'Open Camera'}</button>
+  <label className="pg-merchant-upload">Upload QR image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{const file=e.target.files?.[0];if(file)void read(file).catch(()=>setError('Could not read QR image.'));e.target.value='';}}/></label>
+  {error&&<p className="pg-error" role="alert">{error}</p>}
+ </section>;
 }

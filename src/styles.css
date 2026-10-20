@@ -133,3 +133,10 @@
 .pg-bank-action-danger:hover{background:#fff0f2;border-color:#d78b96}
 .pg-bank-action:focus-visible{outline:3px solid #ed8995;outline-offset:2px}
 @media(max-width:500px){.pg-bank-card-actions{grid-template-columns:1fr}}
+
+.pg-merchant-discovery{display:grid;gap:16px;padding:18px;border:1px solid #e1e4e9;border-radius:16px;margin:20px 0}
+.pg-merchant-methods{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pg-merchant-methods button{padding:13px;border:1px solid #dce1e8;border-radius:12px;background:#fafbfc;font-weight:700;cursor:pointer}
+.pg-merchant-verified{display:flex;gap:14px;align-items:center;padding:16px;border:1px solid #b7ddc6;background:#f2fbf5;border-radius:13px}
+.pg-merchant-verified>div{display:grid;gap:5px}.pg-merchant-verified small{color:#667381}.pg-merchant-verified div span{color:#18864d;font-weight:700;font-size:12px}
+.pg-merchant-scanner{display:grid;gap:12px;padding:16px;border:1px dashed #ccd3dc;border-radius:12px}

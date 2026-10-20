@@ -27,7 +27,7 @@ export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;ses
   <form className="pg-form" onSubmit={submit}><label htmlFor="inst-email">Administrator email</label><input id="inst-email" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)}/>
   <label htmlFor="inst-password">Password</label><input id="inst-password" type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/>
   <button className="pg-button" disabled={busy}>{busy?'Signing in…':'Sign in to Institution Portal'}</button>
-  {error&&<p className="pg-error" role="alert">{error}</p>}</form><p><Link to="/login">Student login</Link></p>
+  {error&&<p className="pg-error" role="alert">{error}</p>}</form>
  </section></main>;
 }
 

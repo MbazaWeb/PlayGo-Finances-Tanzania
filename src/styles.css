@@ -153,3 +153,9 @@
 .pg-merchant-methods button:focus-visible{outline:2px solid #e7192e;outline-offset:2px}
 
 .pg-receipt-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.pg-receipt-actions .pg-button{min-height:54px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;font-weight:750;padding:12px}@media(max-width:580px){.pg-receipt-actions{grid-template-columns:1fr}}
+
+/* Compact receipt actions: override generic full-width buttons */
+.pg-panel .pg-receipt-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:16px 0 14px}
+.pg-panel .pg-receipt-actions .pg-button{display:inline-flex;width:auto;flex:0 1 auto;min-height:40px;padding:9px 15px;border-radius:9px;font-size:14px;font-weight:650;line-height:1.25;white-space:nowrap;margin:0}
+.pg-panel .pg-receipt-actions .pg-button+.pg-button{margin-top:0}
+@media(max-width:580px){.pg-panel .pg-receipt-actions{display:flex;gap:8px}.pg-panel .pg-receipt-actions .pg-button{min-height:40px;font-size:13px;padding:9px 12px;white-space:normal}}

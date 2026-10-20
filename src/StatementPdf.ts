@@ -1,41 +1,101 @@
 export type StatementTransaction={id:string;kind:string;amount_tzs:number;delta_tzs:number;note:string|null;created_at:string};
-const ascii=(value:string)=>value.normalize('NFKD').replace(/[^\x20-\x7E]/g,'?');
-const esc=(value:string)=>ascii(value).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
-const fmt=(value:number)=>Math.abs(value).toLocaleString('en-US',{maximumFractionDigits:0});
-export function downloadAccountStatementPdf(account:string,holder:string,transactions:StatementTransaction[],closingBalance:number){
- const ordered=[...transactions].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()||a.id.localeCompare(b.id));
- const net=ordered.reduce((sum,t)=>sum+Number(t.delta_tzs),0);
- const opening=closingBalance-net;
- const credits=ordered.filter(t=>Number(t.delta_tzs)>0).reduce((s,t)=>s+Number(t.delta_tzs),0);
- const debits=ordered.filter(t=>Number(t.delta_tzs)<0).reduce((s,t)=>s-Number(t.delta_tzs),0);
- let running=opening;
- const lines:{text:string;x:number;y:number;size:number;bold:boolean}[][]=[];
- let page:{text:string;x:number;y:number;size:number;bold:boolean}[]=[];
- let y=780;
- const add=(text:string,x=42,size=10,bold=false,step=18)=>{if(y<66){lines.push(page);page=[];y=780;}page.push({text,x,y,size,bold});y-=step;};
- const row=(date:string,description:string,ref:string,credit:string,debit:string,balance:string)=>{
-  add(date,42,8,false,0);page.push({text:description.slice(0,30),x:122,y,size:8,bold:false},{text:ref.slice(0,8),x:306,y,size:8,bold:false},{text:credit,x:371,y,size:8,bold:false},{text:debit,x:447,y,size:8,bold:false},{text:balance,x:520,y,size:8,bold:false});y-=22;
+type PdfItem={text:string;x:number;y:number;size?:number;bold?:boolean;color?:string};
+type Page={items:PdfItem[];shapes:string[]};
+const clean=(value:string)=>value.normalize('NFKD').replace(/[^\x20-\x7E]/g,'?');
+const escapePdf=(value:string)=>clean(value).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+const money=(value:number)=>Math.abs(value).toLocaleString('en-US',{maximumFractionDigits:0});
+const date=(value:string)=>new Date(value).toLocaleDateString('en-GB');
+const rgb=(hex:string)=>{const c=hex.replace('#','');return [0,2,4].map(i=>(parseInt(c.slice(i,i+2),16)/255).toFixed(3)).join(' ')};
+const ink='#18202E',muted='#697386',red='#E51A2B',line='#DCE2E9',soft='#F4F6F9';
+export function downloadAccountStatementPdf(account:string,holder:string,transactions:StatementTransaction[],closingBalance:number,fromDate:string,toDate:string){
+ const all=[...transactions].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()||a.id.localeCompare(b.id));
+ const begin=new Date(fromDate+'T00:00:00').getTime(),end=new Date(toDate+'T23:59:59.999').getTime();
+ const selected=all.filter(t=>{const time=new Date(t.created_at).getTime();return time>=begin&&time<=end});
+ const currentNet=all.reduce((n,t)=>n+Number(t.delta_tzs),0);
+ const opening=closingBalance-currentNet+all.filter(t=>new Date(t.created_at).getTime()<begin).reduce((n,t)=>n+Number(t.delta_tzs),0);
+ const credits=selected.reduce((n,t)=>n+Math.max(0,Number(t.delta_tzs)),0);
+ const debits=selected.reduce((n,t)=>n+Math.max(0,-Number(t.delta_tzs)),0);
+ const ending=opening+credits-debits;
+ const pages:Page[]=[];let page:Page={items:[],shapes:[]};let y=0;
+ const shape=(s:string)=>page.shapes.push(s);
+ const fill=(x:number,yy:number,w:number,h:number,c:string)=>shape(rgb(c)+' rg '+x+' '+yy+' '+w+' '+h+' re f');
+ const stroke=(x:number,yy:number,w:number,h:number,c=line)=>shape(rgb(c)+' RG 0.7 w '+x+' '+yy+' '+w+' '+h+' re S');
+ const rule=(x1:number,yy:number,x2:number,c=line)=>shape(rgb(c)+' RG 0.65 w '+x1+' '+yy+' m '+x2+' '+yy+' l S');
+ const txt=(text:string,x:number,yy:number,size=9,bold=false,color=ink)=>page.items.push({text,x,y:yy,size,bold,color});
+ const heading=()=>{
+  fill(0,805,612,37,red);
+  // PlayGo wordmark, drawn as PDF vector text so it stays crisp when printed.
+  txt('Play',40,767,26,true,ink);txt('Go',94,767,26,true,red);
+  txt('T A N Z A N I A   L I M I T E D',42,750,7,true,muted);
+  txt('ACCOUNT STATEMENT',365,767,17,true,ink);
+  rule(40,735,572,red);
+  txt('ACCOUNT HOLDER',42,714,8,true,muted);txt(holder.slice(0,52),42,696,12,true);
+  txt('PLAYGO ACCOUNT',333,714,8,true,muted);txt(account,333,696,12,true);
+  txt('STATEMENT PERIOD',42,669,8,true,muted);txt(date(fromDate)+' - '+date(toDate),42,653,10,true);
+  txt('ISSUED ON',333,669,8,true,muted);txt(new Date().toLocaleString('en-GB'),333,653,9);
+  stroke(40,638,532,108);
+  fill(41,582,530,55,soft);
+  txt('OPENING BALANCE',53,620,8,true,muted);txt('TOTAL CREDITS',195,620,8,true,muted);txt('TOTAL DEBITS',333,620,8,true,muted);txt('CLOSING BALANCE',458,620,8,true,muted);
+  txt('TZS '+money(opening),53,598,10,true);txt('TZS '+money(credits),195,598,10,true);txt('TZS '+money(debits),333,598,10,true);txt('TZS '+money(ending),458,598,10,true);
+  txt('TRANSACTION DETAILS',42,558,12,true);
+  fill(40,518,532,27,ink);
+  const columns=[40,111,287,348,422,496,572];
+  const labels=['DATE','DESCRIPTION','REFERENCE','CREDIT','DEBIT','BALANCE'];
+  for(let i=0;i<labels.length;i++)txt(labels[i],columns[i]+6,527,7,true,'#FFFFFF');
+  y=518;
  };
- add('PLAYGO FINANCES TANZANIA',42,17,true,27);
- add('ACCOUNT STATEMENT',42,14,true,26);
- add('Account holder: '+holder,42,10,false,18);
- add('PlayGo account: '+account,42,10,false,18);
- add('Generated: '+new Date().toLocaleString('en-GB'),42,9,false,22);
- add('Opening balance: TZS '+fmt(opening),42,10,true,18);
- add('Total credits: TZS '+fmt(credits)+'   Total debits: TZS '+fmt(debits),42,10,false,18);
- add('Closing balance: TZS '+fmt(closingBalance),42,11,true,24);
- add('DATE                TRANSACTION                             REF         CREDIT       DEBIT       BALANCE',42,8,true,23);
- if(!ordered.length)add('No transactions recorded for this account.',42,10,false,22);
- for(const t of ordered){running+=Number(t.delta_tzs);const d=Number(t.delta_tzs);row(new Date(t.created_at).toLocaleDateString('en-GB'),t.kind||'Transaction',t.id,d>0?fmt(d):'-',d<0?fmt(-d):'-',fmt(running));}
- if(y<95){lines.push(page);page=[];y=780;}
- add('Statement reflects recorded PlayGo transactions. Demo App.',42,8,false,15);
- lines.push(page);
- const objects:string[]=[];const push=(obj:string)=>{objects.push(obj);return objects.length;};
- const catalog=push('');const pages=push('');const regular=push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');const bold=push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
- const pageIds:number[]=[];
- for(let p=0;p<lines.length;p++){const commands=['0.12 0.15 0.2 rg'];for(const item of lines[p])commands.push('BT /'+(item.bold?'F2':'F1')+' '+item.size+' Tf '+item.x+' '+item.y+' Td ('+esc(item.text)+') Tj ET');commands.push('BT /F1 8 Tf 42 32 Td (Page '+(p+1)+' of '+lines.length+') Tj ET');const stream=commands.join('\n');const streamId=push('<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream');const pageId=push('<< /Type /Page /Parent '+pages+' 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 '+regular+' 0 R /F2 '+bold+' 0 R >> >> /Contents '+streamId+' 0 R >>');pageIds.push(pageId);}
- objects[catalog-1]='<< /Type /Catalog /Pages '+pages+' 0 R >>';objects[pages-1]='<< /Type /Pages /Kids ['+pageIds.map(id=>id+' 0 R').join(' ')+'] /Count '+pageIds.length+' >>';
- let pdf='%PDF-1.4\n';const offsets=[0];for(let i=0;i<objects.length;i++){offsets.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+objects[i]+'\nendobj\n';}
- const xref=pdf.length;pdf+='xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n';for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';pdf+='trailer\n<< /Size '+(objects.length+1)+' /Root '+catalog+' 0 R >>\nstartxref\n'+xref+'\n%%EOF';
- const blob=new Blob([new Uint8Array([...pdf].map(c=>c.charCodeAt(0)))],{type:'application/pdf'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='PlayGo-Statement-'+account+'.pdf';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ const continued=()=>{
+  fill(0,805,612,37,red);txt('Play',40,767,25,true);txt('Go',92,767,25,true,red);txt('ACCOUNT STATEMENT  /  CONTINUED',255,769,12,true);
+  rule(40,748,572,red);
+  txt('Account '+account+'  |  '+date(fromDate)+' - '+date(toDate),42,729,9,false,muted);
+  fill(40,680,532,27,ink);
+  const columns=[40,111,287,348,422,496];const labels=['DATE','DESCRIPTION','REFERENCE','CREDIT','DEBIT','BALANCE'];
+  for(let i=0;i<labels.length;i++)txt(labels[i],columns[i]+6,689,7,true,'#FFFFFF');
+  y=680;
+ };
+ const next=()=>{pages.push(page);page={items:[],shapes:[]};continued()};
+ heading();
+ let running=opening;
+ if(!selected.length){stroke(40,474,532,44);txt('No transactions recorded in the selected date range.',53,490,10,false,muted);y=474;}
+ for(let i=0;i<selected.length;i++){
+  const t=selected[i],delta=Number(t.delta_tzs);running+=delta;
+  if(y<110)next();
+  const h=48,base=y-h;
+  if(i%2===0)fill(40,base,532,h,soft);
+  stroke(40,base,532,h);
+  for(const x of [111,287,348,422,496])shape(rgb(line)+' RG 0.6 w '+x+' '+base+' m '+x+' '+y+' l S');
+  txt(date(t.created_at),46,y-19,8);
+  txt(clean(t.kind||'Transaction').slice(0,28),117,y-16,8,true);
+  if(t.note)txt(clean(t.note).slice(0,33),117,y-32,7,false,muted);
+  txt(t.id.slice(0,8).toUpperCase(),293,y-19,7);
+  txt(delta>0?money(delta):'-',354,y-19,8,true,delta>0?'#147D4D':muted);
+  txt(delta<0?money(-delta):'-',428,y-19,8,true,delta<0?red:muted);
+  txt(money(running),502,y-19,8,true);
+  y=base;
+ }
+ if(y<140)next();
+ fill(40,y-43,532,39,soft);stroke(40,y-43,532,39);
+ txt('PERIOD CLOSING BALANCE',53,y-28,10,true);txt('TZS '+money(ending),419,y-28,11,true);
+ pages.push(page);
+ const objects:string[]=[];const push=(value:string)=>{objects.push(value);return objects.length};
+ const catalog=push(''),pagesRef=push(''),font=push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'),fontBold=push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+ const ids:number[]=[];
+ pages.forEach((p,index)=>{
+  const commands=[...p.shapes];
+  for(const t of p.items)commands.push(rgb(t.color||ink)+' rg BT /'+(t.bold?'F2':'F1')+' '+(t.size||9)+' Tf 1 0 0 1 '+t.x+' '+t.y+' Tm ('+escapePdf(t.text)+') Tj ET');
+  commands.push(rgb(muted)+' rg BT /F1 8 Tf 40 49 Td (Demo App  |  PlayGo transaction record) Tj ET');
+  commands.push(rgb(muted)+' rg BT /F1 8 Tf 510 49 Td (Page '+(index+1)+' / '+pages.length+') Tj ET');
+  rule;
+  const stream=commands.join('\n');const streamRef=push('<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream');
+  ids.push(push('<< /Type /Page /Parent '+pagesRef+' 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 '+font+' 0 R /F2 '+fontBold+' 0 R >> >> /Contents '+streamRef+' 0 R >>'));
+ });
+ objects[catalog-1]='<< /Type /Catalog /Pages '+pagesRef+' 0 R >>';
+ objects[pagesRef-1]='<< /Type /Pages /Kids ['+ids.map(id=>id+' 0 R').join(' ')+'] /Count '+ids.length+' >>';
+ let pdf='%PDF-1.4\n';const offsets=[0];
+ objects.forEach((o,i)=>{offsets.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+o+'\nendobj\n'});
+ const start=pdf.length;pdf+='xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n';
+ for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+ pdf+='trailer\n<< /Size '+(objects.length+1)+' /Root '+catalog+' 0 R >>\nstartxref\n'+start+'\n%%EOF';
+ const blob=new Blob([Uint8Array.from(pdf,c=>c.charCodeAt(0))],{type:'application/pdf'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='PlayGo-Statement-'+account+'-'+fromDate+'-to-'+toDate+'.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }

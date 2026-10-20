@@ -22,7 +22,7 @@ export function DemoOtpTimer({expires}:{expires:number}){const [seconds,setSecon
 export function migrateLegacyDemoTopups(userId:string,playgoAccount:string){
  if(!userId||!playgoAccount||userId===playgoAccount)return;
  const store=load();
- const legacy=store.transactions.filter(t=>t.to===userId&&t.kind==='Add Money'&&t.note.includes('SIMULATED ONLY'));
+ const legacy=store.transactions.filter(t=>t.to===userId&&t.kind==='Add Money · Demo'&&t.note.includes('SIMULATED ONLY'));
  if(!legacy.length)return;
  const migrationKey='playgo.demo.topup-migrated.'+userId;
  if(localStorage.getItem(migrationKey)==='1')return;

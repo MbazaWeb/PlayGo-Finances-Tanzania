@@ -317,10 +317,18 @@ function FeeInformation({session}:{session:Session}) {
  const [paymentMessage,setPaymentMessage]=useState('');
  const [refreshKey,setRefreshKey]=useState(0);
  const [walletBalance,setWalletBalance]=useState<number|null>(null);
+ const [walletError,setWalletError]=useState('');
+ const walletReadVersion=useRef(0);
+ const [lastReceipt,setLastReceipt]=useState<{id:string;amount:number;balance:number}|null>(null);
  const [reviewFee,setReviewFee]=useState<{fee:typeof fees[number];amount:number}|null>(null);
  const [otp,setOtp]=useState('');
  const [otpChallenge,setOtpChallenge]=useState<{code:string;expires:number}|null>(null);
- useEffect(()=>{let active=true;void supabase?.from('pg_demo_wallets').select('balance_tzs').eq('user_id',session.user.id).maybeSingle().then(({data})=>{if(active)setWalletBalance(Number(data?.balance_tzs||0));});return()=>{active=false};},[session.user.id,refreshKey]);
+ useEffect(()=>{let active=true;const version=++walletReadVersion.current;
+  async function readWallet(){if(!supabase)return;const {data,error}=await supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',session.user.id).maybeSingle();
+   if(!active||version!==walletReadVersion.current)return;
+   if(error){setWalletError('Wallet balance unavailable: '+error.message);return;}
+   setWalletError('');setWalletBalance(Number(data?.balance_tzs??0));
+  }void readWallet();return()=>{active=false};},[session.user.id,refreshKey]);
  useEffect(()=>{let active=true;async function load(){
   if(!supabase)return;
   const {data:requests,error:requestError}=await supabase.from('pg_student_requests').select('institution_id,course_id,status').eq('user_id',session.user.id).eq('status','approved');
@@ -368,27 +376,34 @@ function FeeInformation({session}:{session:Session}) {
   const txId=crypto.randomUUID();const result=await supabase.rpc('pg_pay_demo_course_fee',{p_id:txId,p_institution_id:f.institutionId,p_course_id:f.courseId,p_academic_year:f.academicYear,p_study_year:f.studyYear,p_amount:amount});
   setPaying(false);
   if(result.error){setPaymentMessage('Payment failed: '+result.error.message);return;}
-  setPaymentMessage('Demo fee payment successful. Receipt: '+txId+'. TZS '+amount.toLocaleString('en-TZ')+' deducted from your PlayGo demo wallet.');
+  // The RPC returns the authoritative post-debit wallet balance. Invalidate earlier reads before updating UI.
+  walletReadVersion.current+=1;
+  const newBalance=Number(result.data);
+  setWalletBalance(newBalance);setWalletError('');setLastReceipt({id:txId,amount,balance:newBalance});
+  setPaymentMessage('Your demo fee payment was saved successfully.');
   setReviewFee(null);setOtpChallenge(null);setOtp('');setAmounts(prev=>({...prev,[f.courseId+'-'+f.academicYear+'-'+f.studyYear]:''}));setRefreshKey(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Fee</h1>
  <p>View your institution-approved course fees and confirmed fee credits. Demo wallet fee payments are available. Real bank payments remain unavailable pending authorization.</p>
  {message&&<p role="status">{message}</p>}
- <p><strong>Available PlayGo Demo Wallet Balance:</strong> {walletBalance===null?'Loading…':'TZS '+walletBalance.toLocaleString('en-TZ')}</p>
- {fees.map((f,i)=><section className="pg-details" key={i}>
+ <div className="pg-feature-card" style={{padding:'20px 22px',margin:'22px 0',borderRadius:16,background:'#171717',color:'#fff'}}><div style={{fontSize:12,letterSpacing:1.3,opacity:.8}}>PLAYGO DEMO WALLET</div><div style={{fontSize:32,fontWeight:750,margin:'10px 0 4px'}}>{walletBalance===null?'Loading…':'TZS '+walletBalance.toLocaleString('en-TZ')}</div><div style={{fontSize:13,opacity:.8}}>Available balance · Updated after every payment</div></div>
+ {walletError&&<p role="alert">{walletError}</p>}
+ {fees.map((f,i)=><section className="pg-details" key={f.courseId+'-'+f.academicYear+'-'+f.studyYear}>
  <h2>{f.course}</h2>
  <p><strong>Institution</strong><span>{f.institution}</span></p>
  <p><strong>Academic Year</strong><span>{f.academicYear} · Study Year {f.studyYear}</span></p>
  <p><strong>Course Fee</strong><span>TZS {f.amount.toLocaleString('en-TZ')}</span></p>
  <p><strong>Confirmed Fee Credits</strong><span>TZS {f.confirmed.toLocaleString('en-TZ')}</span></p>
  <p><strong>Demo Wallet Fee Payments</strong><span>TZS {f.demoPaid.toLocaleString('en-TZ')}</span></p>
- <p><strong>Remaining Demo Fee Balance</strong><span>TZS {Math.max(0,f.amount-f.confirmed-f.demoPaid).toLocaleString('en-TZ')}</span></p>
+ <p><strong>Remaining Demo Fee Balance</strong><span style={{fontWeight:750,color:'#dc162a'}}>TZS {Math.max(0,f.amount-f.confirmed-f.demoPaid).toLocaleString('en-TZ')}</span></p>
+ <div style={{height:9,borderRadius:20,background:'#f1f2f5',overflow:'hidden',margin:'12px 0 22px'}}><div style={{height:'100%',width:Math.min(100,(f.confirmed+f.demoPaid)/Math.max(1,f.amount)*100)+'%',background:'#e51a2b',borderRadius:20}}/></div>
  <div className="pg-form" style={{margin:'18px 0'}}><label htmlFor={'fee-amount-'+i}>Amount to pay (TZS)</label><input id={'fee-amount-'+i} type="number" min="1" step="1" max={Math.max(0,f.amount-f.confirmed-f.demoPaid)} placeholder="Enter any amount up to your remaining fee" value={amounts[f.courseId+'-'+f.academicYear+'-'+f.studyYear]||''} onChange={e=>setAmounts(prev=>({...prev,[f.courseId+'-'+f.academicYear+'-'+f.studyYear]:e.target.value}))}/><button type="button" className="pg-button" disabled={paying||f.amount<=f.confirmed+f.demoPaid} onClick={()=>reviewPayment(f)}>Review & Verify OTP →</button></div>
  <p className="pg-note" role="status">This demo payment deducts your simulated PlayGo Wallet balance and saves a transaction in Supabase. No real bank transfer occurs.</p>
  <p className="pg-note">Fee credits are confirmed by the institution. HESLB loan allocations alone do not count as paid tuition.</p>
  </section>)}
  {reviewFee&&<section className="pg-feature-card" aria-label="Review fee payment"><h2>Review Fee Payment</h2><p>Course: {reviewFee.fee.course}</p><p>Institution: {reviewFee.fee.institution}</p><p>Amount: TZS {reviewFee.amount.toLocaleString('en-TZ')}</p><p>Source: PlayGo Demo Wallet</p><p>Wallet balance: TZS {(walletBalance??0).toLocaleString('en-TZ')}</p><p>Balance after payment: TZS {((walletBalance??0)-reviewFee.amount).toLocaleString('en-TZ')}</p><p><strong>Demo OTP:</strong> {otpChallenge?.code} (expires in 45 seconds). This is a simulated OTP, not a bank SMS.</p><label htmlFor="fee-otp">Enter 6-digit OTP</label><input id="fee-otp" inputMode="numeric" maxLength={6} value={otp} onChange={e=>setOtp(e.target.value.replace(/\\D/g,'').slice(0,6))}/><button type="button" className="pg-button" disabled={paying||otp.length!==6} onClick={()=>void confirmPayment()}>{paying?'Processing…':'Confirm Demo Fee Payment'}</button><button type="button" onClick={()=>{setReviewFee(null);setOtpChallenge(null);setOtp('');}}>Cancel</button></section>}
-  {paymentMessage&&<p role="status">{paymentMessage}</p>}<p className="pg-note">Demo payments are not official university receipts. Use official institution channels for real fees.</p></Frame>;
+  {lastReceipt&&<section className="pg-feature-card" style={{padding:22,border:'1px solid #b7e0c6',borderRadius:16,background:'#f5fcf7'}}><h2 style={{marginTop:0}}>Demo Payment Successful</h2><p>Amount paid: <strong>TZS {lastReceipt.amount.toLocaleString('en-TZ')}</strong></p><p>Wallet balance after payment: <strong>TZS {lastReceipt.balance.toLocaleString('en-TZ')}</strong></p><p style={{overflowWrap:'anywhere',fontSize:13}}>Receipt reference: {lastReceipt.id}</p><p style={{fontSize:12}}>Simulation only — not an official institution receipt.</p></section>}
+ {paymentMessage&&<p role="status">{paymentMessage}</p>}<p className="pg-note">Demo payments are not official university receipts. Use official institution channels for real fees.</p></Frame>;
 }
 function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'quick-loan'|'transfer-bank'|'transaction-status'|'transaction-otp'|'history'}){
  const [account,setAccount]=useState<string|null>(null);

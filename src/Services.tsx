@@ -20,7 +20,7 @@ export function GovernmentStudentLoan(){
 }
 type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;interestRate?:number;interestAmount?:number;totalRepayment?:number;createdAt:string;status:'Not approved'|'Checking'|'Approved'};
 const QUICK_KEY='playgo.demo.quick-loan.v1';
-function getQuickLoans():QuickLoanRequest[]{try{const x:unknown=JSON.parse(localStorage.getItem(QUICK_KEY)||'[]');return Array.isArray(x)?x as QuickLoanRequest[]:[];}catch{return [];}}
+function getQuickLoans():QuickLoanRequest[]{try{const x:unknown=JSON.parse(localStorage.getItem(QUICK_KEY)||'[]');return Array.isArray(x)?(x as QuickLoanRequest[]).map(loan=>({...loan,status:/approved/i.test(loan.status)?'Approved':/checking/i.test(loan.status)?'Checking':'Not approved'})):[];}catch{return [];}}
 export function HomeLoanStatus({account}:{account:string}){
  const [now,setNow]=useState(()=>Date.now());
  const [requests,setRequests]=useState<QuickLoanRequest[]>(()=>getQuickLoans().filter(x=>x.account===account));

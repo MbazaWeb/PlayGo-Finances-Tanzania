@@ -177,3 +177,13 @@
 @media(max-width:600px){.pg-button,.pg-panel .pg-button,.pg-feature-card .pg-button{font-size:13px;min-height:38px;padding:8px 12px}.pg-fee-review-actions,.pg-bank-card-actions{gap:8px}}
 
 .pg-unified-loan{border-top:1px solid #494949;margin-top:20px;padding-top:18px}.pg-unified-loan h3{margin:10px 0 8px;color:#ff6c76;font-size:clamp(22px,5vw,29px);font-weight:750;letter-spacing:-.02em}.pg-unified-loan small{color:#cdd0d6;font-size:11px;letter-spacing:.12em}.pg-unified-loan small:last-child{display:block;margin-top:8px}
+
+/* Student fee payments: six-month collection trend */
+.pg-fee-trend{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end;margin:22px 0}
+.pg-fee-trend-month{min-width:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:11px;color:#64748b}
+.pg-fee-trend-month strong{font-size:10px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pg-fee-trend-track{height:95px;width:100%;max-width:65px;background:#f1f4f8;border-radius:9px;display:flex;align-items:flex-end;overflow:hidden}
+.pg-fee-trend-track>div{width:100%;background:#e32235;border-radius:7px 7px 0 0}
+.pg-fee-recent{margin:16px 0}
+.pg-fee-recent>.pg-tx{display:flex;justify-content:space-between;gap:12px}
+@media(max-width:480px){.pg-fee-trend{gap:5px}.pg-fee-trend-month strong{font-size:9px}.pg-fee-trend-track{height:72px}}

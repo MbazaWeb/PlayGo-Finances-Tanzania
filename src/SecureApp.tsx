@@ -410,7 +410,7 @@ function FeeInformation({session}:{session:Session}) {
   setReviewFee(null);setOtpChallenge(null);setOtp('');setAmounts(prev=>({...prev,[f.courseId+'-'+f.academicYear+'-'+f.studyYear]:''}));setRefreshKey(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Fee</h1>
- <p>Review your course fees, make a payment from your PlayGo Wallet, and track your remaining balance.</p>
+ 
  {message&&<p role="status">{message}</p>}
  <div className="pg-feature-card" style={{padding:'20px 22px',margin:'22px 0',borderRadius:16,background:'#171717',color:'#fff'}}><div style={{fontSize:12,letterSpacing:1.3,opacity:.8}}>PLAYGO WALLET</div><div style={{fontSize:32,fontWeight:750,margin:'10px 0 4px'}}>{walletBalance===null?'Loading…':'TZS '+walletBalance.toLocaleString('en-TZ')}</div><div style={{fontSize:13,opacity:.8}}>Available balance · Updated after every payment</div></div>
  {walletError&&<p role="alert">{walletError}</p>}

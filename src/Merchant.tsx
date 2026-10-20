@@ -37,7 +37,7 @@ export function MerchantPage({ account }: { account: string }) {
   return <>
     <h1>Pay Merchant</h1>
     <p>Pay participating merchants from your PlayGo wallet.</p>
-    <div className="pg-merchant-demo">DEMO MODE · Fictional merchants · No real payment</div>
+    
     <div className="pg-merchant-balance"><span>Available wallet balance</span><strong>TZS {balance.toLocaleString('en-TZ')}</strong></div>
     {!review ? <>
       <label className="pg-merchant-label" htmlFor="merchant-search">Find a merchant</label>
@@ -63,6 +63,6 @@ export function MerchantPage({ account }: { account: string }) {
       <button className="pg-button pg-outline" onClick={() => setReview(false)}>Edit Payment</button>
     </div>}
     {error && <p className="pg-error" role="alert">{error}</p>}
-    <p className="pg-note">The merchant list and payments are simulated. Never use this page to pay a real business.</p>
+    
   </>;
 }

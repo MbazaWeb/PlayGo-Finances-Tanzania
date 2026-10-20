@@ -283,31 +283,22 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><HomeLoanStatus account={account}/><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution}/>:<p>Loading account…</p>)}
- {tab==='profile'&&<><h1>My Profile</h1><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Check your institution request status below</span></p></div><Link className="pg-button pg-outline" to="/institution-request">Submit / Track Institution Verification →</Link><section style={{margin:'22px 0',border:'1px solid #e5e5e5',borderRadius:16,padding:16}}>
- <h2 style={{marginTop:0}}>Course Admitted & Fees</h2>
- 
- {institution.toLowerCase().includes('ruaha catholic')?
- <>
- {savedCourse&&!editingCourse&&<div className="pg-details"><p><strong>Course admitted</strong><span>{approvedCourse||savedCourse}</span></p><p><strong>Year of study</strong><span>Year {savedStudyYear}</span></p><p><strong>Selection status</strong><span>{courseApprovalStatus==='approved'?'Approved by institution':courseApprovalStatus==='loading'?'Checking verification…':'Pending university verification'}</span></p></div>}
- {savedCourse&&!editingCourse&&courseApprovalStatus!=='approved'&&<button type="button" className="pg-button pg-outline" aria-label="Edit course selection" onClick={()=>{setCourse(savedCourse);setStudyYear(savedStudyYear);setCourseMessage('');setEditingCourse(true);}}>✎ Edit course</button>}
- {editingCourse&&<div className="pg-form">
- <label htmlFor="pg-course">Course admitted</label>
- <select id="pg-course" value={course} onChange={e=>setCourse(e.target.value)}><option value="">Select course</option><option value="Diploma in Business Administration (DBA)">Diploma in Business Administration (DBA)</option></select>
- <label htmlFor="pg-study-year">Year of study</label>
- <select id="pg-study-year" value={studyYear} onChange={e=>setStudyYear(e.target.value)}><option value="1">Year 1</option><option value="2">Year 2</option></select>
- <button type="button" className="pg-button pg-outline" disabled={savingCourse||!course} onClick={()=>void saveCourse()}>{savingCourse?'Saving…':'Save course selection'}</button>
- {savedCourse&&<button type="button" className="pg-button pg-outline" disabled={savingCourse} onClick={()=>{setCourse(savedCourse);setStudyYear(savedStudyYear);setEditingCourse(false);setCourseMessage('');}}>Cancel</button>}
+ {tab==='profile'&&<div className="pg-profile-redesign">
+ <header className="pg-profile-heading"><div className="pg-profile-avatar" aria-hidden="true">{(profile?.full_name||'S').trim().charAt(0).toUpperCase()}</div><div><p className="pg-eyebrow">STUDENT ACCOUNT</p><h1>My Profile</h1><p>{profile?.full_name||'Student'}</p></div></header>
+ <section className="pg-profile-card"><div className="pg-profile-card-heading"><h2>Personal & Account Details</h2><span className="pg-profile-pill">{courseApprovalStatus==='approved'?'Verified student':courseApprovalStatus==='loading'?'Checking status':'Verification pending'}</span></div>
+ <div className="pg-profile-fields"><div><span>Full name</span><strong>{profile?.full_name||'Loading…'}</strong></div><div><span>PlayGo account</span><strong>{account||'Loading…'}</strong></div><div><span>Email address</span><strong>{session.user.email}</strong></div><div><span>Institution</span><strong>{institution}</strong></div><div><span>Admission number</span><strong>{admission}</strong></div></div>
+ {courseApprovalStatus!=='approved'&&<Link className="pg-profile-inline-link" to="/institution-request">Track institution verification →</Link>}
+ </section>
+ <section className="pg-profile-card"><div className="pg-profile-card-heading"><h2>Academic Details</h2>{courseApprovalStatus==='approved'&&<span className="pg-profile-pill">Approved</span>}</div>
+ <div className="pg-profile-fields"><div><span>Course</span><strong>{approvedCourse||savedCourse||'Not selected'}</strong></div><div><span>Year of study</span><strong>Year {savedStudyYear}</strong></div><div><span>Course status</span><strong>{courseApprovalStatus==='approved'?'Approved by institution':courseApprovalStatus==='loading'?'Checking…':'Pending verification'}</strong></div></div>
+ {courseApprovalStatus!=='approved'&&!editingCourse&&<button type="button" className="pg-profile-inline-button" onClick={()=>{setCourse(savedCourse);setStudyYear(savedStudyYear);setCourseMessage('');setEditingCourse(true)}}>Edit course selection →</button>}
+ {courseApprovalStatus!=='approved'&&editingCourse&&<div className="pg-form"><label htmlFor="pg-course">Course</label><select id="pg-course" value={course} onChange={e=>setCourse(e.target.value)}><option value="">Select course</option><option value="Diploma in Business Administration (DBA)">Diploma in Business Administration (DBA)</option></select><label htmlFor="pg-study-year">Year of study</label><select id="pg-study-year" value={studyYear} onChange={e=>setStudyYear(e.target.value)}><option value="1">Year 1</option><option value="2">Year 2</option></select><button type="button" className="pg-button" disabled={savingCourse||!course} onClick={()=>void saveCourse()}>{savingCourse?'Saving…':'Save course'}</button>{savedCourse&&<button type="button" className="pg-button pg-outline" onClick={()=>setEditingCourse(false)}>Cancel</button>}</div>}
+ {courseMessage&&<p role="status">{courseMessage}</p>}
+ </section>
+ <section className="pg-profile-card pg-profile-finances"><div className="pg-profile-card-heading"><h2>Fees & HESLB</h2><Link className="pg-profile-inline-link" to="/pay-fee">Pay fee →</Link></div><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></section>
+ {account&&<section className="pg-profile-card"><h2>Linked Bank Accounts</h2><LinkedAccounts account={account} supabase={supabase ?? undefined} userId={session.user.id}/></section>}
+ <button className="pg-button pg-outline pg-profile-logout" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true})}}>Log out</button>
  </div>}
- {courseMessage&&<p role="status" style={{fontSize:13}}>{courseMessage}</p>}
- {savedCourse==='Diploma in Business Administration (DBA)'&&<div style={{marginTop:16}}>
- <p className="pg-eyebrow">RUCU · DBA · ACADEMIC YEAR 2026/2027</p>
- <div className="pg-details"><p><strong>Programme duration</strong><span>2 years</span></p><p><strong>Year {savedStudyYear} fees</strong><span>TZS {(savedStudyYear==='1'?1335000:1445000).toLocaleString()}</span></p><p><strong>Whole programme</strong><span>TZS 2,780,000</span></p><p><strong>Tuition per year</strong><span>TZS 1,060,000</span></p><p><strong>Fee payment status</strong><span>Not verified</span></p></div>
- <h3>Payment schedule · Year {savedStudyYear}</h3>
- <div className="pg-details">{[savedStudyYear==='1'?540000:650000,265000,265000,265000].map((amount,i)=><p key={i}><strong>Instalment {i+1}</strong><span>TZS {amount.toLocaleString()}</span></p>)}</div>
- 
- </div>}
- </>:<p className="pg-note">No verified course fee schedule has been provided for this institution. Ask your university administrator to publish the official schedule.</p>}
- </section>{account&&<LinkedAccounts account={account} supabase={supabase ?? undefined} userId={session.user.id}/>}<button className="pg-button pg-outline" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true});}}>Log out</button></>}
  {error&&<p className="pg-error" role="alert">{error}</p>}
  
  <footer className="pg-demo-footer">Demo App</footer></section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;

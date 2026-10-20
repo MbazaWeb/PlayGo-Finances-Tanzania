@@ -259,6 +259,8 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const [editingCourse,setEditingCourse]=useState(!session.user.user_metadata?.course_requested);
  const [savedCourse,setSavedCourse]=useState(String(session.user.user_metadata?.course_requested||''));
  const [savedStudyYear,setSavedStudyYear]=useState(String(session.user.user_metadata?.study_year_requested||'1'));
+ const [approvedCourse,setApprovedCourse]=useState<string|null>(null);
+ const [courseApprovalStatus,setCourseApprovalStatus]=useState<'loading'|'approved'|'pending'>('loading');
  const navigate=useNavigate();
  async function saveCourse(){
    if(!supabase)return;
@@ -266,9 +268,10 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
    const {error}=await supabase.auth.updateUser({data:{course_requested:course,study_year_requested:studyYear}});
    setSavingCourse(false);
    if(error){setCourseMessage('Could not save course selection: '+error.message);return;}
-   setSavedCourse(course);setSavedStudyYear(studyYear);setEditingCourse(false);setCourseMessage('Course selection saved. Admission is pending university verification.');
+   setSavedCourse(course);setSavedStudyYear(studyYear);setEditingCourse(false);setCourseMessage('Course selection saved.');
  }
 
+ useEffect(()=>{let active=true;async function loadApproval(){if(!supabase)return;const {data,error}=await supabase.from('pg_student_requests').select('course_id,status').eq('user_id',session.user.id).eq('status','approved').not('course_id','is',null).limit(1).maybeSingle();if(!active)return;if(error||!data?.course_id){setCourseApprovalStatus('pending');return;}const course=await supabase.from('pg_courses').select('name').eq('id',data.course_id).maybeSingle();if(!active)return;if(course.error||!course.data){setCourseApprovalStatus('pending');return;}setApprovedCourse(course.data.name);setCourseApprovalStatus('approved');setEditingCourse(false);}void loadApproval();return()=>{active=false};},[session.user.id]);
  useEffect(()=>{let active=true;void supabase?.from('pg_profiles').select('user_id,full_name,playgo_account').eq('user_id',session.user.id).maybeSingle().then(({data,error})=>{if(!active)return;if(error)setError(error.message);setProfile(data as Profile|null);});return()=>{active=false;};},[session.user.id]);
  useEffect(()=>{if(!profile?.playgo_account)return;try{migrateLegacyDemoTopups(session.user.id,profile.playgo_account);}catch{ /* Browser storage may be unavailable. */ }},[profile?.playgo_account,session.user.id]);
  const account=profile?.playgo_account||'';
@@ -285,8 +288,8 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  
  {institution.toLowerCase().includes('ruaha catholic')?
  <>
- {savedCourse&&!editingCourse&&<div className="pg-details"><p><strong>Course admitted</strong><span>{savedCourse}</span></p><p><strong>Year of study</strong><span>Year {savedStudyYear}</span></p><p><strong>Selection status</strong><span>Pending university verification</span></p></div>}
- {savedCourse&&!editingCourse&&<button type="button" className="pg-button pg-outline" aria-label="Edit course selection" onClick={()=>{setCourse(savedCourse);setStudyYear(savedStudyYear);setCourseMessage('');setEditingCourse(true);}}>✎ Edit course</button>}
+ {savedCourse&&!editingCourse&&<div className="pg-details"><p><strong>Course admitted</strong><span>{approvedCourse||savedCourse}</span></p><p><strong>Year of study</strong><span>Year {savedStudyYear}</span></p><p><strong>Selection status</strong><span>{courseApprovalStatus==='approved'?'Approved by institution':courseApprovalStatus==='loading'?'Checking verification…':'Pending university verification'}</span></p></div>}
+ {savedCourse&&!editingCourse&&courseApprovalStatus!=='approved'&&<button type="button" className="pg-button pg-outline" aria-label="Edit course selection" onClick={()=>{setCourse(savedCourse);setStudyYear(savedStudyYear);setCourseMessage('');setEditingCourse(true);}}>✎ Edit course</button>}
  {editingCourse&&<div className="pg-form">
  <label htmlFor="pg-course">Course admitted</label>
  <select id="pg-course" value={course} onChange={e=>setCourse(e.target.value)}><option value="">Select course</option><option value="Diploma in Business Administration (DBA)">Diploma in Business Administration (DBA)</option></select>

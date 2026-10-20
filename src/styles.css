@@ -99,3 +99,7 @@
 .pg-receipt-prompt{border:1px solid #a9dcc0!important;background:#f5fcf8!important;padding:22px!important;border-radius:17px!important}
 .pg-receipt-prompt h2{margin-top:0}
 @media(max-width:500px){.pg-notify-heading{flex-direction:column}.pg-notify-item-head{flex-direction:column}.pg-notify-actions{display:grid}.pg-notify-actions button{width:100%}}
+
+.pg-global-bell{position:fixed;top:16px;right:max(18px,calc((100vw - 980px)/2));z-index:1000;width:45px;height:45px;border:1px solid #e5e7eb;border-radius:50%;background:#fff;box-shadow:0 4px 18px #00000012;color:#e51a2b;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:background .15s,transform .15s}
+.pg-global-bell:hover,.pg-global-bell:focus-visible{background:#fff0f2;transform:translateY(-1px)}
+@media(max-width:600px){.pg-global-bell{top:12px;right:14px;width:42px;height:42px}}

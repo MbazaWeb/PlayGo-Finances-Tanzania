@@ -1,6 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { beginMerchantPayment, walletInfo } from './Wallet';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Fictional merchant directory for demonstration. No real businesses are represented.
 export const DEMO_MERCHANTS = [
@@ -11,7 +11,7 @@ export const DEMO_MERCHANTS = [
   { id: 'PGM1005', name: 'Campus Laundry', category: 'Lifestyle', initials: 'CL' },
 ] as const;
 
-export function MerchantPage({ account }: { account: string }) {
+export function MerchantPage({ account, userId, supabase }: { account: string; userId: string; supabase: SupabaseClient }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -21,24 +21,25 @@ export function MerchantPage({ account }: { account: string }) {
   const [error, setError] = useState('');
   const merchant = DEMO_MERCHANTS.find(m => m.id === selected);
   const matches = useMemo(() => DEMO_MERCHANTS.filter(m => `${m.name} ${m.category} ${m.id}`.toLowerCase().includes(search.toLowerCase().trim())), [search]);
-  const balance = walletInfo(account).balance;
+  const [balance,setBalance]=useState<number|null>(null);
+  useEffect(()=>{let active=true;async function refresh(){const {data,error}=await supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle();if(!active)return;if(error){setError('Unable to load wallet balance: '+error.message);setBalance(null);}else{setBalance(Number(data?.balance_tzs??0));setError('');}}void refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh)};},[supabase,userId]);
   const value = Number(amount);
   function selectMerchant(id: string) { setSelected(id); setReview(false); setError(''); setAmount(''); setReference(''); }
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!merchant || !Number.isSafeInteger(value) || value < 1 || value > 100000000) { setError('Enter a valid whole-number amount in TZS.'); return; }
-    if (value > balance) { setError('Insufficient wallet balance. Add demo money before paying.'); return; }
+    if (balance===null || value > balance) { setError('Insufficient wallet balance. Add funds before paying.'); return; }
     setError(''); setReview(true);
   }
   function confirm() {
-    if (!merchant || !Number.isSafeInteger(value) || value < 1 || value > walletInfo(account).balance) { setError('Wallet balance or amount changed. Review again.'); setReview(false); return; }
-    beginMerchantPayment({ merchantId: merchant.id, amount: value, reference: reference.trim().slice(0, 80) }, navigate);
+    setError('Merchant checkout is not connected to the Supabase transaction ledger yet. No payment has been made.');
+    setReview(false);
   }
   return <>
     <h1>Pay Merchant</h1>
     <p>Pay participating merchants from your PlayGo wallet.</p>
     
-    <div className="pg-merchant-balance"><span>Available wallet balance</span><strong>TZS {balance.toLocaleString('en-TZ')}</strong></div>
+    <div className="pg-merchant-balance"><span>Available wallet balance</span><strong>TZS {balance===null?'Loading…':balance.toLocaleString('en-TZ')}</strong></div>
     {!review ? <>
       <label className="pg-merchant-label" htmlFor="merchant-search">Find a merchant</label>
       <input className="pg-merchant-search" id="merchant-search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, category or merchant ID" />

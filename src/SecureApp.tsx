@@ -310,28 +310,51 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  </section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
 }
 function FeeInformation({session}:{session:Session}) {
- const [selected,setSelected]=useState<number|null>(null);
- const [rows,setRows]=useState<{label:string;amount:number;due:string;institution:string}[]>([]);
- const [message,setMessage]=useState('Loading published fee schedules…');
+ const [fees,setFees]=useState<{institution:string;course:string;academicYear:string;studyYear:number;amount:number;confirmed:number}[]>([]);
+ const [message,setMessage]=useState('Loading your approved course fees…');
  useEffect(()=>{let active=true;async function load(){
   if(!supabase)return;
-  const {data:enrollments,error:e}=await supabase.from('pg_enrollments').select('institution_id').eq('user_id',session.user.id).eq('active',true);
+  const {data:requests,error:requestError}=await supabase.from('pg_student_requests').select('institution_id,course_id,status').eq('user_id',session.user.id).eq('status','approved');
   if(!active)return;
-  if(e){setMessage('Unable to load enrollment: '+e.message);return;}
-  const ids=[...new Set((enrollments||[]).map(x=>String(x.institution_id)))];
-  if(!ids.length){setMessage('No verified institution enrollment. Your institution must confirm your enrollment before fees can be displayed.');return;}
-  const [inst,years]=await Promise.all([supabase.from('pg_institutions').select('id,name').in('id',ids),supabase.from('pg_academic_years').select('id,institution_id,label').eq('published',true).in('institution_id',ids)]);
+  if(requestError){setMessage('Unable to check institution approval: '+requestError.message);return;}
+  const approved=(requests||[]).filter(x=>x.course_id);
+  if(!approved.length){setMessage('No approved course was found for this signed-in student account. Please confirm you are using the same account approved by your institution.');return;}
+  const institutionIds=[...new Set(approved.map(x=>x.institution_id))];
+  const courseIds=[...new Set(approved.map(x=>String(x.course_id)))];
+  const [enrollments,inst,courses,feeRows,credits]=await Promise.all([
+   supabase.from('pg_enrollments').select('institution_id,active').eq('user_id',session.user.id).eq('active',true).in('institution_id',institutionIds),
+   supabase.from('pg_institutions').select('id,name').in('id',institutionIds),
+   supabase.from('pg_courses').select('id,name').in('id',courseIds),
+   supabase.from('pg_course_fees').select('course_id,institution_id,academic_year,study_year,amount_tzs').in('course_id',courseIds).order('academic_year',{ascending:false}),
+   supabase.from('pg_student_fee_credits').select('institution_id,academic_year,amount_tzs').eq('user_id',session.user.id).in('institution_id',institutionIds)
+  ]);
   if(!active)return;
-  if(inst.error||years.error){setMessage('Unable to load published schedules: '+(inst.error||years.error)?.message);return;}
-  const yy=years.data||[];
-  if(!yy.length){setMessage('Your institution has not published a fee schedule yet.');return;}
-  const {data:parts,error:p}=await supabase.from('pg_installments').select('academic_year_id,installment_number,amount_tzs,due_date').in('academic_year_id',yy.map(y=>y.id)).order('installment_number');
-  if(!active)return;
-  if(p){setMessage('Unable to load installments: '+p.message);return;}
-  const found=(parts||[]).map(t=>{const year=yy.find(y=>y.id===t.academic_year_id);return {label:(year?.label||'Academic year')+' · Installment '+t.installment_number,amount:Number(t.amount_tzs),due:String(t.due_date),institution:inst.data?.find(i=>i.id===year?.institution_id)?.name||'Institution'};});
-  setRows(found);setMessage(found.length?'':'No installments have been published yet.');
+  const failed=[enrollments,inst,courses,feeRows,credits].find(x=>x.error)?.error;
+  if(failed){setMessage('Unable to load course fees: '+failed.message);return;}
+  const activeIds=new Set((enrollments.data||[]).map(x=>x.institution_id));
+  if(!approved.some(x=>activeIds.has(x.institution_id))){setMessage('Your course is approved, but the current student session has no active enrollment visible. Please sign out, sign in again, and contact your institution if this persists.');return;}
+  const found=(feeRows.data||[]).filter(f=>approved.some(x=>x.course_id===f.course_id&&x.institution_id===f.institution_id)&&activeIds.has(f.institution_id)).map(f=>({
+   institution:inst.data?.find(i=>i.id===f.institution_id)?.name||'Institution',
+   course:courses.data?.find(c=>c.id===f.course_id)?.name||'Approved course',
+   academicYear:f.academic_year,studyYear:Number(f.study_year),amount:Number(f.amount_tzs),
+   confirmed:(credits.data||[]).filter(c=>c.institution_id===f.institution_id&&c.academic_year===f.academic_year).reduce((n,c)=>n+Number(c.amount_tzs),0)
+  }));
+  setFees(found);
+  setMessage(found.length?'':'Your institution has approved your course but has not configured a course fee schedule yet.');
  }void load();return()=>{active=false};},[session.user.id]);
- return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Fee</h1><p>View your institution's published fee installments. Payments are not available until the banking integration is approved.</p>{message&&<p role="status">{message}</p>}{rows.map((r,i)=><div className="pg-details" key={i}><p><strong>{r.institution}</strong><span>{r.label}</span></p><p><strong>Amount</strong><span>TZS {r.amount.toLocaleString('en-TZ')}</span></p><p><strong>Due date</strong><span>{r.due}</span></p><p><strong>Payment status</strong><span>Demo only</span></p><button type="button" className="pg-button" onClick={()=>setSelected(i)}>Open Fee Payment Card →</button></div>)}{selected!==null&&rows[selected]&&<div className="pg-feature-card" role="dialog" aria-modal="true" aria-label="Fee payment details"><h2>Fee Payment · Demo</h2><p><strong>Institution:</strong> {rows[selected].institution}</p><p><strong>Installment:</strong> {rows[selected].label}</p><p><strong>Amount:</strong> TZS {rows[selected].amount.toLocaleString('en-TZ')}</p><p><strong>Due:</strong> {rows[selected].due}</p><p className="pg-note">This is a preview card only. Fee payment and wallet debit are disabled until a secure, authorized payment workflow is implemented.</p><button type="button" className="pg-button pg-outline" onClick={()=>setSelected(null)}>Close Card</button></div>}<p className="pg-note">No payment is initiated. Use only official institution payment channels until PlayGo is authorized.</p></Frame>;
+ return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Fee</h1>
+ <p>View your institution-approved course fees and confirmed fee credits. Online fee payment is not yet available because banking integration is pending authorization.</p>
+ {message&&<p role="status">{message}</p>}
+ {fees.map((f,i)=><section className="pg-details" key={i}>
+ <h2>{f.course}</h2>
+ <p><strong>Institution</strong><span>{f.institution}</span></p>
+ <p><strong>Academic Year</strong><span>{f.academicYear} · Study Year {f.studyYear}</span></p>
+ <p><strong>Course Fee</strong><span>TZS {f.amount.toLocaleString('en-TZ')}</span></p>
+ <p><strong>Confirmed Fee Credits</strong><span>TZS {f.confirmed.toLocaleString('en-TZ')}</span></p>
+ <p><strong>Remaining Fee Balance</strong><span>TZS {Math.max(0,f.amount-f.confirmed).toLocaleString('en-TZ')}</span></p>
+ <p className="pg-note">Fee credits are confirmed by the institution. HESLB loan allocations alone do not count as paid tuition.</p>
+ </section>)}
+ <p className="pg-note">Payments are disabled. Use only official institution payment channels until PlayGo banking integration is approved.</p></Frame>;
 }
 function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'quick-loan'|'transfer-bank'|'transaction-status'|'transaction-otp'|'history'}){
  const [account,setAccount]=useState<string|null>(null);

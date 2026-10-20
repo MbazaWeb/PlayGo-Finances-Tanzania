@@ -24,6 +24,6 @@ export default function AdminLogin({supabase}:{supabase:SupabaseClient}){
    <button className="pg-button" type="submit" disabled={busy}>{busy?'Checking access…':'Sign in to Admin Portal'}</button>
    {error&&<p className="pg-error" role="alert">{error}</p>}
   </form>
-  <p><Link to="/login">Student login</Link></p>
+  
  </section></main>;
 }

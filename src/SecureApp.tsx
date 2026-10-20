@@ -240,12 +240,12 @@ function StudentFinancialOverview({userId,studyYear}:{userId:string;studyYear:st
  const categories:[string,keyof StudentFinance['loanRows'][number]][]=[['Tuition / Fees','tuition_tzs'],['Meals & Accommodation','meals_accommodation_tzs'],['Books & Stationery','books_stationery_tzs'],['Field / Practical','field_practical_tzs'],['Research','research_tzs'],['Other','other_tzs']];
  const format=(n:number)=>'TZS '+n.toLocaleString('en-TZ');
  return <section style={{margin:'20px 0',border:'1px solid #e4e9f1',borderRadius:16,padding:18}}>
- <h2>Student Financial Overview</h2><p className="pg-note">Institution-reported HESLB amounts are not proof of disbursement. Only separately confirmed fee credits for the configured academic year reduce your outstanding fees.</p>
+ <h2>Student Financial Overview</h2>
  <div className="pg-details"><p><strong>Approved course</strong><span>{finance.courseName}</span></p><p><strong>Year {studyYear} fee</strong><span>{finance.fee===null?'Not configured':format(finance.fee)}</span></p><p><strong>Fee basis</strong><span>{finance.feeSource}</span></p><p><strong>HESLB allocation reported</strong><span>{format(totalLoan)}</span></p><p><strong>Confirmed fee credits</strong><span>{format(totalCredit)}</span></p><p><strong>Remaining university fee</strong><span>{balance===null?'Awaiting configured academic-year fee':format(balance)}</span></p></div>
  {balance!==null&&<div style={{height:10,background:'#e9edf4',borderRadius:8,overflow:'hidden',margin:'12px 0'}} role="progressbar" aria-label="Confirmed fee payment progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={finance.fee?Math.min(100,Math.round(totalCredit/finance.fee*100)):100}><div style={{width:(finance.fee?Math.min(100,totalCredit/finance.fee*100):100)+'%',height:'100%',background:'#11845b'}}/></div>}
  <h3>HESLB allocation distribution</h3>{finance.loanRows.length?finance.loanRows.map(r=><div key={r.id} className="pg-details"><p><strong>{r.academic_year}</strong><span>{format(r.amount_tzs)} · {r.status==='verified'?'Verified source record':'Institution reported / unverified'}</span></p>{categories.filter(([,key])=>Number(r[key]||0)>0).map(([label,key])=><p key={key}><strong>{label}</strong><span>{format(Number(r[key]||0))}</span></p>)}</div>):<p>No institution-reported HESLB allocation yet.</p>}
  <h3>Confirmed fee payments / credits</h3>{finance.credits.length?finance.credits.map(c=><p key={c.id} className="pg-details"><strong>{c.source==='heslb_tuition_confirmed'?'HESLB tuition credit':'Institution-confirmed payment'} · {c.academic_year}</strong><span>{format(Number(c.amount_tzs))} · Ref: {c.reference}</span></p>):<p>No confirmed fee payments or credits recorded.</p>}
- <p className="pg-note">A programme catalogue fee is indicative until the institution configures an academic-year fee. Fee balance excludes unverified payments and does not represent your wallet cash balance.</p>
+ 
  </section>;
 }
 type StudentTab = 'home'|'merchant'|'services'|'profile';
@@ -282,7 +282,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution}/>:<p>Loading account…</p>)}
  {tab==='profile'&&<><h1>My Profile</h1><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/><div className="pg-details"><p><strong>Full name</strong><span>{profile?.full_name||'Loading…'}</span></p><p><strong>Account number</strong><span>{account||'Pending'}</span></p><p><strong>Institution</strong><span>{institution}</span></p><p><strong>Admission number</strong><span>{admission}</span></p><p><strong>Email</strong><span style={{overflowWrap:'anywhere'}}>{session.user.email}</span></p><p><strong>University verification</strong><span>Check your institution request status below</span></p></div><Link className="pg-button pg-outline" to="/institution-request">Submit / Track Institution Verification →</Link><section style={{margin:'22px 0',border:'1px solid #e5e5e5',borderRadius:16,padding:16}}>
  <h2 style={{marginTop:0}}>Course Admitted & Fees</h2>
- <p className="pg-note">Course selection is student-declared, not yet verified by the university.</p>
+ 
  {institution.toLowerCase().includes('ruaha catholic')?
  <>
  {savedCourse&&!editingCourse&&<div className="pg-details"><p><strong>Course admitted</strong><span>{savedCourse}</span></p><p><strong>Year of study</strong><span>Year {savedStudyYear}</span></p><p><strong>Selection status</strong><span>Pending university verification</span></p></div>}

@@ -140,3 +140,14 @@
 .pg-merchant-verified{display:flex;gap:14px;align-items:center;padding:16px;border:1px solid #b7ddc6;background:#f2fbf5;border-radius:13px}
 .pg-merchant-verified>div{display:grid;gap:5px}.pg-merchant-verified small{color:#667381}.pg-merchant-verified div span{color:#18864d;font-weight:700;font-size:12px}
 .pg-merchant-scanner{display:grid;gap:12px;padding:16px;border:1px dashed #ccd3dc;border-radius:12px}
+
+.pg-merchant-scanner{display:grid;gap:14px;padding:20px;border:1px solid #e0e4eb;border-radius:18px;background:#fafbfc}
+.pg-merchant-scanner-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pg-merchant-scanner-head strong{font-size:19px;color:#151b26}
+.pg-merchant-scanner-head button{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:#eef0f4;color:#1b2633;cursor:pointer}
+.pg-merchant-scanner p{margin:0;color:#6a7481;font-size:14px}
+.pg-merchant-video{display:block;width:100%;max-height:340px;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#121820}
+.pg-merchant-upload{display:flex;align-items:center;justify-content:center;min-height:48px;padding:12px;border:1px solid #d7dde7;border-radius:11px;background:white;color:#1b2735;font-weight:700;cursor:pointer;position:relative}
+.pg-merchant-upload input{position:absolute;width:1px;height:1px;opacity:0}
+.pg-merchant-upload:focus-within{outline:2px solid #e7192e;outline-offset:2px}
+.pg-merchant-methods button:focus-visible{outline:2px solid #e7192e;outline-offset:2px}

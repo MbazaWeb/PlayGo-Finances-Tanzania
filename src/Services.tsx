@@ -4,13 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { walletInfo, creditApprovedDemoLoan } from './Wallet';
 
-type Request = { id: string; account: string; type: string; details: string; createdAt: string; status: 'Submitted' };
-const KEY = 'playgo.demo.service-requests.v1';
-const options = ['Fee payment inquiry', 'Transaction inquiry', 'Account assistance', 'Other student finance inquiry'];
-function readRequests(): Request[] {
-  try { const data: unknown = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(data) ? data as Request[] : []; }
-  catch { return []; }
-}
+const options = ['Fee payment inquiry','Transaction inquiry','Account assistance','Other student finance inquiry'];
 export function GovernmentStudentLoan(){
  return <section className="pg-feature-card" id="government-loan">
  <div className="pg-services-heading"><h2>Government Student Loan</h2><span>HESLB · Status only</span></div>
@@ -99,10 +93,6 @@ export function QuickLoan({account}:{account:string}){
  </section>;
 }
 export function ServicesPage({ account, institution, userId, supabase }: { account: string; institution: string; userId: string; supabase: SupabaseClient }) {
-  const [type, setType] = useState(options[0]);
-  const [details, setDetails] = useState('');
-  const [requests, setRequests] = useState(() => readRequests().filter(r => r.account === account));
-  const [message, setMessage] = useState('');
   const [statementBusy,setStatementBusy]=useState(false);
   const [statementPeriod,setStatementPeriod]=useState('3');
   const [statementFrom,setStatementFrom]=useState('');
@@ -172,14 +162,6 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
    }catch(error){setStatementError(error instanceof Error?error.message:'Unable to generate statement.');}
    finally{setStatementBusy(false);}
   }
-  function submitRequest(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (details.trim().length < 10 || details.trim().length > 500) { setMessage('Enter a description between 10 and 500 characters.'); return; }
-    const item: Request = { id: 'SR-' + crypto.randomUUID().slice(0,8).toUpperCase(), account, type, details: details.trim(), createdAt: new Date().toISOString(), status: 'Submitted' };
-    const next = [...readRequests(), item];
-    try { localStorage.setItem(KEY, JSON.stringify(next)); setRequests(next.filter(r => r.account === account)); setDetails(''); setMessage(`Demo request ${item.id} saved on this device.`); }
-    catch { setMessage('Could not save request. Check browser storage.'); }
-  }
   return <>
     <h1>Student Services</h1>
     <p>Manage your student payments and financial records in one place.</p>
@@ -209,19 +191,57 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
      {statementPeriod==='custom'&&<div className="pg-statement-dates"><div><label htmlFor="statement-from">From</label><input id="statement-from" type="date" value={statementFrom} onChange={e=>setStatementFrom(e.target.value)}/></div><div><label htmlFor="statement-to">To</label><input id="statement-to" type="date" value={statementTo} onChange={e=>setStatementTo(e.target.value)}/></div></div>}</div>
      <button className="pg-button" type="button" disabled={statementBusy} onClick={()=>void downloadStatement()}>{statementBusy?'Preparing statement…':'Download PDF Statement ↓'}</button>{statementError&&<p role="alert" className="pg-error">{statementError}</p>}
     </section>
-    <section className="pg-feature-card">
-      <div className="pg-services-heading"><h2>Service Requests</h2><span>Local only</span></div>
-      <p>Submit an inquiry for your own records. Requests are not sent to PlayGo staff or a university.</p>
-      <form className="pg-form pg-services-form" onSubmit={submitRequest}>
-        <label htmlFor="pg-request-type">Request type</label>
-        <select id="pg-request-type" value={type} onChange={e => setType(e.target.value)}>{options.map(x => <option key={x}>{x}</option>)}</select>
-        <label htmlFor="pg-request-description">Description</label>
-        <textarea id="pg-request-description" rows={4} maxLength={500} minLength={10} value={details} onChange={e => setDetails(e.target.value)} placeholder="Describe your question (do not include passwords, PINs or sensitive personal data)" required />
-        <button className="pg-button" type="submit">Save Demo Request</button>
-        {message && <p className="pg-services-message" role="status">{message}</p>}
-      </form>
-      <h3 className="pg-services-subtitle">My Requests</h3>
-      {requests.length === 0 ? <p className="pg-note">No requests saved yet.</p> : <div className="pg-service-requests">{requests.slice().reverse().map(r => <div key={r.id} className="pg-service-request"><strong>{r.type}</strong><small>{r.id} · {new Date(r.createdAt).toLocaleDateString('en-TZ')}</small><p>{r.details}</p><span>{r.status}</span></div>)}</div>}
-    </section>
+    <SupportInbox supabase={supabase} userId={userId} role="student" />
   </>;
+}
+
+
+type SupportInquiry={id:string;user_id:string;destination:'platform'|'institution';institution_id:string|null;category:string;subject:string;status:string;created_at:string;updated_at:string};
+type SupportMessage={id:string;inquiry_id:string;sender_id:string;body:string;created_at:string};
+export function SupportInbox({supabase,userId,role,institutionId}:{supabase:SupabaseClient;userId:string;role:'student'|'admin'|'institution';institutionId?:string}){
+ const [tickets,setTickets]=useState<SupportInquiry[]>([]),[messages,setMessages]=useState<SupportMessage[]>([]);
+ const [selected,setSelected]=useState(''),[destination,setDestination]=useState('platform'),[linkedInstitution,setLinkedInstitution]=useState(''),[institutions,setInstitutions]=useState<{id:string;name:string}[]>([]);
+ const [category,setCategory]=useState(options[0]),[subject,setSubject]=useState(''),[body,setBody]=useState(''),[reply,setReply]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
+ async function refresh(){
+  const query=supabase.from('pg_support_inquiries').select('id,user_id,destination,institution_id,category,subject,status,created_at,updated_at').order('created_at',{ascending:false}).limit(200);
+  const result=await (role==='student'?query.eq('user_id',userId):role==='admin'?query.eq('destination','platform'):query.eq('institution_id',institutionId||''));
+  if(result.error)throw result.error;
+  setTickets(result.data||[]);
+  const ids=(result.data||[]).map(t=>t.id);
+  if(!ids.length){setMessages([]);return;}
+  const msgs=await supabase.from('pg_support_messages').select('id,inquiry_id,sender_id,body,created_at').in('inquiry_id',ids).order('created_at',{ascending:true}).limit(1000);
+  if(msgs.error)throw msgs.error;
+  setMessages(msgs.data||[]);
+ }
+ useEffect(()=>{let active=true;async function load(){try{await refresh();if(role==='student'){const req=await supabase.from('pg_student_requests').select('institution_id').eq('user_id',userId).eq('status','approved');if(req.error)throw req.error;const ids=[...new Set((req.data||[]).map(x=>x.institution_id))];if(ids.length){const names=await supabase.from('pg_institutions').select('id,name').in('id',ids);if(names.error)throw names.error;if(active)setInstitutions(names.data||[])}}}catch(e){if(active)setError(e instanceof Error?e.message:String(e))}finally{if(active)setLoading(false)}}void load();return()=>{active=false}},[supabase,userId,role,institutionId]);
+ async function createTicket(e:FormEvent<HTMLFormElement>){e.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('');
+  try{if(destination==='institution'&&!linkedInstitution)throw new Error('Select an institution.');
+   const q=await supabase.from('pg_support_inquiries').insert({user_id:userId,destination,institution_id:destination==='institution'?linkedInstitution:null,category,subject:subject.trim()}).select('id').single();
+   if(q.error)throw q.error;
+   const m=await supabase.from('pg_support_messages').insert({inquiry_id:q.data.id,sender_id:userId,body:body.trim()});
+   if(m.error)throw m.error;
+   setSubject('');setBody('');setSelected(q.data.id);setNotice('Inquiry submitted successfully.');await refresh();
+  }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
+ }
+ async function sendReply(e:FormEvent<HTMLFormElement>){e.preventDefault();if(!selected||!reply.trim()||busy)return;setBusy(true);setError('');try{
+  const m=await supabase.from('pg_support_messages').insert({inquiry_id:selected,sender_id:userId,body:reply.trim()});if(m.error)throw m.error;setReply('');await refresh();
+ }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
+ async function changeStatus(status:string){if(!selected)return;setBusy(true);setError('');try{const r=await supabase.from('pg_support_inquiries').update({status}).eq('id',selected);if(r.error)throw r.error;await refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
+ const current=tickets.find(t=>t.id===selected);
+ return <section className="pg-feature-card pg-support"><div className="pg-services-heading"><h2>{role==='student'?'Service Requests':role==='admin'?'Platform Inquiries':'Institution Inquiries'}</h2><span>{tickets.length} inquiries</span></div>
+ {role==='student'&&<form className="pg-form pg-services-form" onSubmit={e=>void createTicket(e)}>
+ <label htmlFor="support-destination">Send inquiry to</label><select id="support-destination" value={destination} onChange={e=>setDestination(e.target.value)}><option value="platform">PlayGo Support</option><option value="institution" disabled={!institutions.length}>My Institution</option></select>
+ {destination==='institution'&&<><label htmlFor="support-institution">Institution</label><select id="support-institution" value={linkedInstitution} onChange={e=>setLinkedInstitution(e.target.value)} required><option value="">Select institution</option>{institutions.map(i=><option value={i.id} key={i.id}>{i.name}</option>)}</select></>}
+ <label htmlFor="support-category">Request type</label><select id="support-category" value={category} onChange={e=>setCategory(e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select>
+ <label htmlFor="support-subject">Subject</label><input id="support-subject" required minLength={3} maxLength={150} value={subject} onChange={e=>setSubject(e.target.value)}/>
+ <label htmlFor="support-description">Describe your inquiry</label><textarea id="support-description" required minLength={10} maxLength={2000} rows={4} value={body} onChange={e=>setBody(e.target.value)}/>
+ <button className="pg-button" disabled={busy} type="submit">{busy?'Submitting…':'Send Inquiry'}</button></form>}
+ {error&&<p className="pg-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+ <h3>{role==='student'?'My Inquiries':'Incoming Inquiries'}</h3>
+ {loading?<p>Loading inquiries…</p>:!tickets.length?<p>No inquiries yet.</p>:<div className="pg-support-layout"><div className="pg-support-tickets">{tickets.map(t=><button key={t.id} type="button" className={selected===t.id?'pg-support-ticket active':'pg-support-ticket'} onClick={()=>setSelected(t.id)}><strong>{t.subject}</strong><small>{t.category} · {new Date(t.created_at).toLocaleDateString('en-GB')}</small><span>{t.status.replace('_',' ')}</span><small>#{t.id.slice(0,8)}</small></button>)}</div>
+ <div className="pg-support-thread">{current?<><h3>{current.subject}</h3><p className="pg-note">{current.category} · {current.destination==='platform'?'PlayGo Support':'Institution Support'} · {current.status.replace('_',' ')}</p>
+ <div className="pg-support-messages">{messages.filter(m=>m.inquiry_id===current.id).map(m=><div key={m.id} className={m.sender_id===userId?'pg-support-message mine':'pg-support-message'}><strong>{m.sender_id===current.user_id?'Student':current.destination==='platform'?'PlayGo Support':'Institution Support'}</strong><p>{m.body}</p><small>{new Date(m.created_at).toLocaleString('en-GB')}</small></div>)}</div>
+ {role!=='student'&&<div className="pg-support-status"><label htmlFor="support-status">Status</label><select id="support-status" value={current.status} disabled={busy} onChange={e=>void changeStatus(e.target.value)}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>}
+ {current.status!=='closed'&&<form className="pg-form" onSubmit={e=>void sendReply(e)}><label htmlFor="support-reply">Reply</label><textarea id="support-reply" rows={3} required maxLength={2000} value={reply} onChange={e=>setReply(e.target.value)}/><button className="pg-button" type="submit" disabled={busy||!reply.trim()}>Send Reply</button></form>}</>:<p>Select an inquiry to view the conversation.</p>}</div></div>}
+ </section>
 }

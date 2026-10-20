@@ -74,4 +74,13 @@ export function MerchantPage({ account, userId, supabase }: { account: string; u
   </>;
 }
 
-function MerchantQrScanner({onScan,onClose}:{onScan:(value:string)=>void;onClose:()=>void}){return <div className="pg-merchant-scanner"><label>Scanned Merchant ID<input placeholder="Enter ID from QR" onChange={e=>onScan(e.target.value)}/></label><button type="button" onClick={onClose}>Close</button></div>}
+function MerchantQrScanner({onScan,onClose}:{onScan:(value:string)=>void;onClose:()=>void}){
+ const [error,setError]=useState('');
+ async function read(file:File){
+  const Detector=(window as Window&{BarcodeDetector?:new(o:{formats:string[]})=>{detect:(source:ImageBitmap)=>Promise<{rawValue:string}[]>}}).BarcodeDetector;
+  if(!Detector){setError('QR reader unavailable. Enter merchant ID.');return}
+  const bitmap=await createImageBitmap(file);
+  try{const codes=await new Detector({formats:['qr_code']}).detect(bitmap);if(codes[0])onScan(codes[0].rawValue);else setError('QR not found.')}finally{bitmap.close()}
+ }
+ return <section className="pg-merchant-scanner"><strong>Scan Merchant QR</strong><label>Take photo or upload QR<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void read(f).catch(()=>setError('Unable to read QR.'))}}/></label><button type="button" onClick={onClose}>Close</button>{error&&<p role="alert">{error}</p>}</section>
+}

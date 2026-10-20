@@ -104,6 +104,9 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
   const [requests, setRequests] = useState(() => readRequests().filter(r => r.account === account));
   const [message, setMessage] = useState('');
   const [statementBusy,setStatementBusy]=useState(false);
+  const [statementPeriod,setStatementPeriod]=useState('3');
+  const [statementFrom,setStatementFrom]=useState('');
+  const [statementTo,setStatementTo]=useState(new Date().toISOString().slice(0,10));
   const [statementError,setStatementError]=useState('');
   const data = walletInfo(account);
   const [fee,setFee]=useState<{total:number;paid:number;year:string;course:string}|null>(null);
@@ -136,19 +139,26 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
   const percent=fee&&fee.total>0?Math.min(100,Math.round(fee.paid/fee.total*100)):0;
   const money = (n: number) => 'TZS ' + n.toLocaleString('en-TZ');
   async function downloadStatement(){
-    setStatementBusy(true);setStatementError('');
-    try{
-     const [profile,wallet,ledger]=await Promise.all([
-      supabase.from('pg_profiles').select('full_name').eq('user_id',userId).maybeSingle(),
-      supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle(),
-      supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,delta_tzs,note,created_at').eq('user_id',userId).order('created_at',{ascending:true}).limit(5000)
-     ]);
-     if(profile.error||wallet.error||ledger.error)throw new Error(profile.error?.message||wallet.error?.message||ledger.error?.message||'Statement unavailable');
-     if(!wallet.data)throw new Error('Wallet account not found.');
-     if((ledger.data||[]).length===5000)throw new Error('Statement exceeds 5,000 entries; request a shorter statement period.');
-     downloadAccountStatementPdf(account,profile.data?.full_name||'Student',(ledger.data||[]) as StatementTransaction[],Number(wallet.data.balance_tzs));
-    }catch(error){setStatementError(error instanceof Error?error.message:'Unable to generate statement.');}
-    finally{setStatementBusy(false);}
+   setStatementBusy(true);setStatementError('');
+   try{
+    const today=new Date();let from=statementFrom,to=statementTo;
+    if(statementPeriod!=='custom'){
+     const d=new Date(today);d.setMonth(d.getMonth()-Number(statementPeriod));
+     from=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+     to=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+    }
+    if(!from||!to||from>to||to>new Date().toISOString().slice(0,10))throw new Error('Select a valid date range ending no later than today.');
+    const [profile,wallet,ledger]=await Promise.all([
+     supabase.from('pg_profiles').select('full_name').eq('user_id',userId).maybeSingle(),
+     supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle(),
+     supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,delta_tzs,note,created_at').eq('user_id',userId).order('created_at',{ascending:true}).limit(5001)
+    ]);
+    if(profile.error||wallet.error||ledger.error)throw new Error(profile.error?.message||wallet.error?.message||ledger.error?.message||'Statement unavailable');
+    if(!wallet.data)throw new Error('Wallet account not found.');
+    if((ledger.data||[]).length>5000)throw new Error('More than 5,000 transactions found; a complete statement requires additional pagination.');
+    downloadAccountStatementPdf(account,profile.data?.full_name||'Student',(ledger.data||[]) as StatementTransaction[],Number(wallet.data.balance_tzs),from,to);
+   }catch(error){setStatementError(error instanceof Error?error.message:'Unable to generate statement.');}
+   finally{setStatementBusy(false);}
   }
   function submitRequest(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -180,10 +190,12 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
       </>:<p>No configured fee for your approved course and study year.</p>}
       <Link className="pg-button" to="/pay-fee">Manage Fees →</Link>
     </section>
-    <section className="pg-feature-card">
-      <div className="pg-services-heading"><h2>Account Statement</h2><span>{data.transactions.length} records</span></div>
-      
-      <p className="pg-note">Download your transaction history, credits, debits and running balance.</p><button className="pg-button pg-outline" type="button" disabled={statementBusy} onClick={()=>void downloadStatement()}>{statementBusy?'Preparing PDF…':'Download Account Statement (PDF)'}</button>{statementError&&<p role="alert" className="pg-error">{statementError}</p>}
+    <section className="pg-feature-card pg-statement-card">
+     <div className="pg-services-heading"><h2>Account Statement</h2><span>PDF</span></div>
+     <p className="pg-note">A detailed statement with dates, references, credits, debits and running balances.</p>
+     <div className="pg-statement-filters"><label htmlFor="statement-period">Statement period</label><select id="statement-period" value={statementPeriod} onChange={e=>setStatementPeriod(e.target.value)}><option value="1">Last 1 month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="custom">Custom date range</option></select>
+     {statementPeriod==='custom'&&<div className="pg-statement-dates"><div><label htmlFor="statement-from">From</label><input id="statement-from" type="date" value={statementFrom} onChange={e=>setStatementFrom(e.target.value)}/></div><div><label htmlFor="statement-to">To</label><input id="statement-to" type="date" value={statementTo} onChange={e=>setStatementTo(e.target.value)}/></div></div>}</div>
+     <button className="pg-button" type="button" disabled={statementBusy} onClick={()=>void downloadStatement()}>{statementBusy?'Preparing statement…':'Download PDF Statement ↓'}</button>{statementError&&<p role="alert" className="pg-error">{statementError}</p>}
     </section>
     <section className="pg-feature-card">
       <div className="pg-services-heading"><h2>Service Requests</h2><span>Local only</span></div>

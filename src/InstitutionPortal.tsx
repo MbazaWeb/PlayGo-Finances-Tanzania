@@ -34,7 +34,7 @@ export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;ses
 
 
 type Section='dashboard'|'requests'|'students'|'inquiries'|'profile';
-type Institution={id:string;name:string;code:string|null;email:string|null;phone:string|null;address:string|null;region:string|null;website:string|null;contact_person:string|null;admin_username:string|null};
+
 type StudentRequest={id:string;user_id:string;admission_number:string;status:'pending'|'approved'|'rejected'|'manual_verification';review_note:string|null;created_at:string;course_id:string|null};
 type Course={id:string;code:string;name:string};
 type Enrollment={id:string;user_id:string;admission_number:string;active:boolean};

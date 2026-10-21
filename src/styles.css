@@ -195,8 +195,8 @@
 
 /* Tuition services hub — match Personal Boost Loan navigation tiles */
 .pg-fee-hub{max-width:100%;}
-.pg-fee-hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:32px}
-.pg-fee-hub-tile{display:flex;align-items:center;min-height:124px;padding:24px;border:1px solid #e1e5eb;border-radius:22px;background:#fff;color:#0b0b0b;text-decoration:none;box-shadow:0 5px 20px #00000006;transition:border-color .15s,box-shadow .15s,transform .15s}
-.pg-fee-hub-tile strong{font-size:22px;line-height:1.3}
+.pg-fee-hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:24px}
+.pg-fee-hub-tile{display:flex;align-items:center;min-height:82px;padding:16px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;color:inherit;text-decoration:none;box-shadow:0 3px 12px #00000008;transition:border-color .15s,box-shadow .15s,transform .15s}
+.pg-fee-hub-tile strong{font-size:inherit;font-weight:700;line-height:1.35}
 .pg-fee-hub-tile:hover,.pg-fee-hub-tile:focus-visible{border-color:#e51a2b;box-shadow:0 7px 22px #00000010;transform:translateY(-1px)}
-@media(max-width:480px){.pg-fee-hub-grid{gap:12px}.pg-fee-hub-tile{min-height:100px;padding:15px;border-radius:17px}.pg-fee-hub-tile strong{font-size:16px}}
+@media(max-width:480px){.pg-fee-hub-grid{gap:12px}.pg-fee-hub-tile{min-height:82px;padding:16px;border-radius:16px}.pg-fee-hub-tile strong{font-size:inherit}}

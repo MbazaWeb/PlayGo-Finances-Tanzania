@@ -12,6 +12,49 @@ function effectiveOutstanding(loan:Loan){
  const additional=Math.max(0,days-Number(loan.penalty_days||0))*Math.ceil((Number(loan.principal_tzs)+Number(loan.interest_tzs))*0.005);
  return Number(loan.outstanding_tzs)+additional;
 }
+
+const creditTiers=[
+ {name:'Starter',min:0,limit:20000},
+ {name:'Bronze',min:100,limit:40000},
+ {name:'Silver',min:200,limit:75000},
+ {name:'Gold',min:350,limit:100000},
+ {name:'Platinum',min:500,limit:200000},
+ {name:'Diamond',min:700,limit:300000},
+] as const;
+function CreditScoreSimulator(){
+ const [transactions,setTransactions]=useState(15);
+ const [onTime,setOnTime]=useState(2);
+ const [late,setLate]=useState(0);
+ // Preview only: these controls never write to the database or affect borrowing eligibility.
+ const score=Math.max(0,transactions*2+onTime*15-late*20+70);
+ const index=creditTiers.reduce((result,tier,i)=>score>=tier.min?i:result,0);
+ const tier=creditTiers[index];
+ const next=creditTiers[index+1];
+ const progress=next?Math.min(100,Math.max(0,(score-tier.min)/(next.min-tier.min)*100)):100;
+ return <section aria-label="Interactive credit score simulator" style={{marginTop:28,padding:18,border:'1px solid #444',borderRadius:18}}>
+  <h2>Interactive Credit Score Simulator</h2>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+   <div><small>SIMULATED CREDIT SCORE</small><div style={{fontSize:36,fontWeight:750}}>{score}</div><strong>points · {tier.name} Level</strong></div>
+   <div style={{textAlign:'right'}}><small>Borrowing limit</small><div style={{fontSize:25,fontWeight:700}}>{money(tier.limit)}</div></div>
+  </div>
+  <div role="progressbar" aria-label="Progress to next credit level" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} style={{height:12,background:'#333',borderRadius:20,overflow:'hidden',marginTop:20}}>
+   <div style={{width:progress+'%',height:'100%',background:'#278761',borderRadius:20}}/>
+  </div>
+  <p>{next?`${Math.max(0,next.min-score)} more points to reach ${next.name} and unlock up to ${money(next.limit)}.`:'Highest credit level reached.'}</p>
+  <hr style={{border:0,borderTop:'1px solid #444',margin:'22px 0'}}/>
+  {([
+   {label:'Eligible transactions',value:transactions,set:setTransactions,max:100},
+   {label:'Loans fully repaid on time',value:onTime,set:setOnTime,max:20},
+   {label:'Late repayments',value:late,set:setLate,max:20},
+  ]).map(item=><div key={item.label} style={{marginBottom:20}}>
+   <label style={{display:'flex',justifyContent:'space-between',fontWeight:600,gap:12}}><span>{item.label}</span><span>{item.value}</span></label>
+   <input aria-label={item.label} type="range" min="0" max={item.max} step="1" value={item.value} onChange={e=>item.set(Number(e.target.value))} style={{width:'100%',accentColor:'#278761'}}/>
+  </div>)}
+  <button type="button" onClick={()=>{setTransactions(15);setOnTime(2);setLate(0);}} style={{width:'100%',borderRadius:24,padding:12,border:'1px solid #777',background:'transparent',color:'inherit',cursor:'pointer'}}>Reset simulation</button>
+  <p style={{fontSize:12,opacity:.7}}>Illustrative calculation only. Actual points, eligibility and borrowing limits are determined by your account records. Monthly bonuses, overdue-day deductions and anti-abuse controls are not included here.</p>
+ </section>;
+}
+
 export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userId:string}){
  const [loans,setLoans]=useState<Loan[]>([]);
  const [repayments,setRepayments]=useState<Repayment[]>([]);
@@ -96,6 +139,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
 
     <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
+  <CreditScoreSimulator/>
   <h2>Loan History</h2>
   {!loans.length&&!loading&&<p>No loans recorded yet.</p>}
   {loans.map(l=><div key={l.id} className="pg-tx"><div><strong>{l.id}</strong><small> · Due {fmt(l.due_at)}</small></div><span>{Number(l.outstanding_tzs)===0?'Paid in full':money(effectiveOutstanding(l))+' remaining'}</span></div>)}

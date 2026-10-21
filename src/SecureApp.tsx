@@ -381,12 +381,15 @@ function FeeInformation({session}:{session:Session}){
  }
  return <Frame><Link to={feeView==='overview'?'/services':'/pay-fee'} className="pg-back">{feeView==='overview'?'← Back to Services':'← Back to Tuition Services'}</Link>
  {message&&<p role="status">{message}</p>}
- {feeView==='overview'&&<><h1>Pay Tuition Fee</h1><p>Select a service to continue.</p><div style={{display:'grid',gap:14}}>
- <Link className="pg-feature-card" to="/pay-fee?view=wallet"><h2>PlayGo Wallet →</h2><p>Check available balance</p></Link>
- <Link className="pg-feature-card" to="/pay-fee?view=payment"><h2>Tuition Payment →</h2><p>Pay your verified institution</p></Link>
- <Link className="pg-feature-card" to="/pay-fee?view=progress"><h2>Fee Payment Progress →</h2><p>Track payments recorded through PlayGo</p></Link>
- <Link className="pg-feature-card" to="/pay-fee?view=history"><h2>Payment History →</h2><p>View individual tuition payments</p></Link>
- </div></>}
+ {feeView==='overview'&&<section className="pg-feature-card pg-fee-hub"><h1>Pay Tuition Fee</h1>
+ <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':'TZS '+balance.toLocaleString('en-TZ')}</span></p><p><strong>Tuition paid via PlayGo</strong><span>TZS {payments.reduce((sum,p)=>sum+Number(p.amount_tzs),0).toLocaleString('en-TZ')}</span></p></div>
+ <nav className="pg-fee-hub-grid" aria-label="Tuition fee services">
+ <Link className="pg-fee-hub-tile" to="/pay-fee?view=payment"><strong>Tuition Payment</strong></Link>
+ <Link className="pg-fee-hub-tile" to="/pay-fee?view=wallet"><strong>PlayGo Wallet</strong></Link>
+ <Link className="pg-fee-hub-tile" to="/pay-fee?view=progress"><strong>Fee Payment Progress</strong></Link>
+ <Link className="pg-fee-hub-tile" to="/pay-fee?view=history"><strong>Payment History</strong></Link>
+ </nav>
+ </section>}
  {feeView==='wallet'&&<><h1>PlayGo Wallet</h1><section className="pg-feature-card"><h2>Available Wallet Balance</h2><strong style={{fontSize:28}}>TZS {balance===null?'Loading…':balance.toLocaleString('en-TZ')}</strong></section></>}
  {feeView==='payment'&&<><h1>Tuition Payment</h1><p>Payments recorded here do not represent your institution's official fee balance.</p>{!approved.length&&!message&&<p>Loading verified institution…</p>}
  {!!approved.length&&<section className="pg-feature-card"><div className="pg-form"><label htmlFor="fee-institution">Verified institution and course</label><select id="fee-institution" value={selected} onChange={e=>setSelected(e.target.value)}>{approved.map(e=><option key={e.institutionId+'|'+e.courseId} value={e.institutionId+'|'+e.courseId}>{e.institution} — {e.course}</option>)}</select>

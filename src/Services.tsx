@@ -156,7 +156,7 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
     
     <div className="pg-services-grid">
       <Link className="pg-service-tile" to="/pay-fee"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Tuition Fees</strong><small>Enter amount and pay fees</small><span className="pg-service-arrow">›</span></Link>
-      <Link className="pg-service-tile" to="/history"><span className="pg-service-symbol" aria-hidden="true">◷</span><strong>Transactions</strong><small>Payment history</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/history" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">◷</span><strong>Transactions</strong><small>Payment history</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/add-money"><span className="pg-service-symbol" aria-hidden="true">＋</span><strong>Add Money</strong><small>Fund your wallet</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/profile"><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Linked Accounts</strong><small>NMB Bank only</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/government-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Government Loan</strong><small>HESLB allocation status</small><span className="pg-service-arrow">›</span></Link>

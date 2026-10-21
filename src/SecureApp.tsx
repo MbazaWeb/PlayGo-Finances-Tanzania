@@ -310,7 +310,7 @@ function FeeInformation({session}:{session:Session}){
  const [review,setReview]=useState<{amount:number;entry:Approved}|null>(null);
  const [otp,setOtp]=useState('');
  const [challenge,setChallenge]=useState<{code:string;expires:number}|null>(null);
- const [receipt,setReceipt]=useState<{id:string;amount:number;balance:number;date:string}|null>(null);
+ const [receipt,setReceipt]=useState<{id:string;amount:number;balance:number;date:string;institution:string;course:string}|null>(null);
  const [refresh,setRefresh]=useState(0);
  useEffect(()=>{let active=true;async function load(){
   if(!supabase)return;
@@ -357,7 +357,7 @@ function FeeInformation({session}:{session:Session}){
   const result=await supabase.rpc('pg_pay_demo_course_fee',{p_id:txId,p_institution_id:review.entry.institutionId,p_course_id:review.entry.courseId,p_academic_year:year,p_study_year:1,p_amount:review.amount});
   setBusy(false);
   if(result.error){setMessage('Payment failed: '+result.error.message);return;}
-  setReceipt({id:txId,amount:review.amount,balance:Number(result.data),date:now});openFeeView('receipt');
+  setReceipt({id:txId,amount:review.amount,balance:Number(result.data),date:now,institution:review.entry.institution,course:review.entry.course});openFeeView('receipt');
   setReview(null);setChallenge(null);setOtp('');setAmount('');setMessage('Payment recorded successfully.');setRefresh(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <Frame><Link to={feeView==='overview'?'/services':'/pay-fee'} className="pg-back">{feeView==='overview'?'← Back to Services':'← Back to Tuition Services'}</Link>
@@ -380,7 +380,24 @@ function FeeInformation({session}:{session:Session}){
  <div className="pg-fee-trend" role="img" aria-label={months.map(m=>m.label+': TZS '+m.value).join(', ')}>{months.map(m=><div key={m.key} className="pg-fee-trend-month"><strong>{m.value?m.value.toLocaleString('en-TZ'):'—'}</strong><div className="pg-fee-trend-track"><div style={{height:(m.value?Math.max(5,m.value/max*100):0)+'%'}}/></div><small>{m.label}</small></div>)}</div></section></>}
  {feeView==='history'&&<><h1>Tuition Payment History</h1><section className="pg-feature-card">{scoped.map(p=><div key={p.id} className="pg-tx"><span>{new Date(p.created_at).toLocaleDateString('en-GB')}</span><strong>TZS {Number(p.amount_tzs).toLocaleString('en-TZ')}</strong></div>)}{!scoped.length&&<p>No tuition payments yet.</p>}</section></>}
  {feeView==='verify'&&<><h1>Review Fee Payment</h1>{!review?<p>Payment review expired or was cancelled. <Link to="/pay-fee?view=payment">Start again</Link>.</p>:<section className="pg-feature-card pg-fee-review"><div className="pg-fee-review-amount"><span>Amount to pay</span><strong>TZS {review.amount.toLocaleString('en-TZ')}</strong></div><div className="pg-fee-review-details"><div><span>Institution</span><strong>{review.entry.institution}</strong></div><div><span>Course</span><strong>{review.entry.course}</strong></div><div><span>Wallet after payment</span><strong>TZS {((balance??0)-review.amount).toLocaleString('en-TZ')}</strong></div></div><div className="pg-fee-review-verify"><h3>OTP Verification</h3><div className="pg-fee-review-code"><strong>{challenge?.code}</strong><small>Expires in 45 seconds</small></div><label htmlFor="fee-otp">Enter 6-digit OTP</label><input id="fee-otp" inputMode="numeric" maxLength={6} value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}/></div><div className="pg-fee-review-actions"><button type="button" className="pg-button" disabled={busy||otp.length!==6} onClick={()=>void confirm()}>{busy?'Processing…':'Confirm Payment'}</button><button type="button" className="pg-button pg-outline" disabled={busy} onClick={()=>{setReview(null);setChallenge(null);setOtp('');openFeeView('payment');}}>Cancel</button></div></section>}</>}
- {feeView==='receipt'&&<><h1>Payment Confirmation</h1>{receipt?<section className="pg-feature-card" role="status"><h2>Payment Recorded</h2><p><strong>TZS {receipt.amount.toLocaleString('en-TZ')}</strong></p><p>Reference: {receipt.id}</p><p>This record confirms a PlayGo payment, not settlement by your university.</p><button type="button" className="pg-button" onClick={()=>downloadTransactionReceipt({id:receipt.id,kind:'fee_payment',amount_tzs:receipt.amount,delta_tzs:-receipt.amount,note:'Tuition fee',created_at:receipt.date},String(session.user.user_metadata?.playgo_account||''),String(session.user.user_metadata?.full_name||session.user.email||'Student'))}>Download Receipt</button></section>:<p>No payment confirmation in this session. <Link to="/pay-fee?view=history">View payment history</Link>.</p>}</>}
+ {feeView==='receipt'&&<><h1>Payment Confirmation</h1>{receipt?<section className="pg-feature-card pg-tuition-receipt" role="status" aria-label="Tuition payment receipt">
+ <div className="pg-tuition-receipt-head"><div><div className="pg-tuition-receipt-brand">Play<span>Go</span></div><small>TANZANIA LIMITED</small></div><strong className="pg-tuition-receipt-status">Payment Recorded</strong></div>
+ <p className="pg-tuition-receipt-label">TUITION PAYMENT RECEIPT</p>
+ <div className="pg-tuition-receipt-amount"><small>Amount Paid</small><strong>TZS {receipt.amount.toLocaleString('en-TZ')}</strong></div>
+ <div className="pg-details pg-tuition-receipt-details">
+ <p><strong>Payment status</strong><span>Recorded by PlayGo</span></p>
+ <p><strong>Payment date &amp; time</strong><span>{new Date(receipt.date).toLocaleString('en-GB',{dateStyle:'long',timeStyle:'medium'})}</span></p>
+ <p><strong>Transaction reference</strong><span className="pg-tuition-receipt-reference">{receipt.id}</span></p>
+ <p><strong>Student name</strong><span>{String(session.user.user_metadata?.full_name||session.user.email||'Student')}</span></p>
+ <p><strong>PlayGo account</strong><span>{String(session.user.user_metadata?.playgo_account||'Not available')}</span></p>
+ <p><strong>Payment purpose</strong><span>Tuition Fee</span></p>
+ <p><strong>Institution</strong><span>{receipt.institution}</span></p>
+ <p><strong>Programme / course</strong><span>{receipt.course}</span></p>
+ <p><strong>Wallet balance after payment</strong><span>TZS {receipt.balance.toLocaleString('en-TZ')}</span></p>
+ </div>
+ <p className="pg-tuition-receipt-note">This receipt confirms a payment recorded through PlayGo. It does not independently confirm settlement or reconciliation by the institution.</p>
+ <div className="pg-tuition-receipt-actions"><button type="button" className="pg-button" onClick={()=>downloadTransactionReceipt({id:receipt.id,kind:'fee_payment',amount_tzs:receipt.amount,delta_tzs:-receipt.amount,note:'Tuition fee · '+receipt.institution+' · '+receipt.course,created_at:receipt.date},String(session.user.user_metadata?.playgo_account||''),String(session.user.user_metadata?.full_name||session.user.email||'Student'))}>Download Receipt</button><Link to="/pay-fee?view=history" className="pg-button pg-outline">Payment History</Link></div>
+ </section>:<p>No payment confirmation in this session. <Link to="/pay-fee?view=history">View payment history</Link>.</p>}</>}
  </Frame>;
 }
 function LinkedAccountsRoute({session}:{session:Session}){

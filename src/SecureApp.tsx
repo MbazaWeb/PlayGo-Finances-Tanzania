@@ -7,7 +7,8 @@ import AdminLogin from './AdminLogin';
 import InstitutionPortal, {InstitutionLogin} from './InstitutionPortal';
 import StudentInstitutionRequest from './StudentInstitutionRequest';
 import { MerchantPage } from './Merchant';
-import { ServicesPage, QuickLoan, HomeLoanStatus, GovernmentStudentLoan } from './Services';
+import { ServicesPage, GovernmentStudentLoan } from './Services';
+import { SecureQuickLoan } from './SecureQuickLoan';
 import { WalletSummary, LinkedAccounts, AddMoneyPage, BankTransferPage, TransactionStatus, History, TransactionOtp, DemoOtpTimer, DEMO_OTP_LIFETIME_MS, generateDemoOtp, migrateLegacyDemoTopups } from './Wallet';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -289,7 +290,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const tabs:[StudentTab,string,string,string][]=[['home','Home','⌂','/dashboard'],['merchant','Merchant','▣','/merchant'],['services','Services','▦','/services'],['profile','Profile','♙','/profile']];
  return <main className="pg-page pg-student-page"><section className="pg-panel">
  <img className="pg-logo pg-small" src={logo} alt="PlayGo Tanzania Limited"/><p className="pg-eyebrow">PLAYGO FINANCES · STUDENT WALLET</p>
- {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><HomeLoanStatus account={account}/><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
+ {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><div className="pg-feature-card"><strong>Personal Boost Loan</strong><p>Automatic partial repayments when due, late penalty and manual Pay Loan.</p><Link to="/quick-loan">Manage Loan / Pay Loan →</Link></div><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
  {tab==='profile'&&<div className="pg-profile-redesign">
@@ -400,7 +401,7 @@ function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'qu
  try{migrateLegacyDemoTopups(session.user.id,String(data.playgo_account));}catch{ /* Demo migration may be unavailable when browser storage is blocked. */ }
  setAccount(String(data.playgo_account));
  });return()=>{active=false;};},[session.user.id]);
- return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transfer-bank'?<BankTransferPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transaction-status'?<TransactionStatus account={account}/>:kind==='transaction-otp'?<TransactionOtp account={account} findAccount={()=>undefined}/>:kind==='history'?<><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Transaction History</h1><History account={account} supabase={supabase!} userId={session.user.id}/></>:<><Link to="/dashboard" className="pg-back">← Back to Home</Link><QuickLoan account={account}/></>}</Frame>;
+ return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transfer-bank'?<BankTransferPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transaction-status'?<TransactionStatus account={account}/>:kind==='transaction-otp'?<TransactionOtp account={account} findAccount={()=>undefined}/>:kind==='history'?<><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Transaction History</h1><History account={account} supabase={supabase!} userId={session.user.id}/></>:<><Link to="/dashboard" className="pg-back">← Back to Home</Link><SecureQuickLoan supabase={supabase!} userId={session.user.id}/></>}</Frame>;
 }
 export default function SecureApp() {
   const location=useLocation();

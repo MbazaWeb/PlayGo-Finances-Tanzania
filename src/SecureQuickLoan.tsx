@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useState,type FormEvent} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {Link,useSearchParams} from 'react-router-dom';
 
 type Loan={id:string;principal_tzs:number;interest_tzs:number;outstanding_tzs:number;due_at:string;created_at:string;penalty_accrued_tzs:number;penalty_days:number};
 type Repayment={id:string;loan_id:string;amount_tzs:number;method:string;created_at:string};
@@ -48,6 +49,8 @@ function CreditScoreDashboard({credit,events,loading}:{credit:CreditEligibility|
 }
 
 export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userId:string}){
+ const [searchParams]=useSearchParams();
+ const view=searchParams.get('view')||'overview';
  const [loans,setLoans]=useState<Loan[]>([]);
  const [credit,setCredit]=useState<CreditEligibility|null>(null);
  const [creditEvents,setCreditEvents]=useState<CreditEvent[]>([]);
@@ -107,11 +110,22 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   setRepayAmount('');await load();window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <section className="pg-feature-card">
-  <h1>Personal Boost Loan</h1>
   {loading&&<p role="status">Loading loan records…</p>}
   {error&&<p className="pg-error" role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}
+  {view!=='overview'&&<Link to="/quick-loan" className="pg-back">← Back to Quick Loan</Link>}
+  {view==='overview'&&<>
+  <h1>Personal Boost Loan</h1>
   <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
+  <div style={{display:'grid',gap:12,marginTop:24}}>
+  {current?<Link className="pg-feature-card" to="/quick-loan?view=active"><strong>Active Loan →</strong><p>View balance, due date and repayment options</p></Link>:<Link className="pg-feature-card" to="/quick-loan?view=request"><strong>Request Loan →</strong><p>Check your borrowing limit and request a loan</p></Link>}
+  <Link className="pg-feature-card" to="/quick-loan?view=credit"><strong>Credit Score & Eligibility →</strong><p>Points, activity and borrowing tier</p></Link>
+  <Link className="pg-feature-card" to="/quick-loan?view=loans"><strong>Loan History →</strong><p>View previous and active loans</p></Link>
+  <Link className="pg-feature-card" to="/quick-loan?view=repayments"><strong>Repayment History →</strong><p>Review completed repayments</p></Link>
+  </div>
+  </>}
+  {view==='active'&&<>
+  <h1>Loan Details & Repayment</h1>
   {current&&<section aria-label="Active loan details">
    <h2>Active Loan</h2>
    {active.length>1&&<><label htmlFor="repay-select">Select loan</label><select id="repay-select" value={current.id} onChange={e=>setSelected(e.target.value)}>{active.map(l=><option key={l.id} value={l.id}>{l.id}</option>)}</select></>}
@@ -135,7 +149,10 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
     </form>
    </details>
   </section>}
-  {!active.length&&!loading&&<><h2>Request Loan</h2>
+  </>}
+  :{view==='request'&&<>
+  <h1>Request Loan</h1>
+  {!active.length&&!loading&&<>
    <form className="pg-form" onSubmit={request}>
     <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`5,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>
     <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours · 2%</option><option value="3">3 days · 2.5%</option><option value="7">7 days · 3%</option><option value="14">14 days · 4%</option><option value="30">30 days · 5%</option></select>
@@ -143,12 +160,22 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
 
     <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
+  </>}
+  :{view==='credit'&&<>
+  <h1>Credit Score</h1>
   <CreditScoreDashboard credit={credit} events={creditEvents} loading={loading}/>
-  <h2>Loan History</h2>
+  </>}
+  :{view==='loans'&&<>
+  <h1>Loan History</h1>
+  
   {!loans.length&&!loading&&<p>No loans recorded yet.</p>}
   {loans.map(l=><div key={l.id} className="pg-tx"><div><strong>{l.id}</strong><small> · Due {fmt(l.due_at)}</small></div><span>{Number(l.outstanding_tzs)===0?'Paid in full':money(effectiveOutstanding(l))+' remaining'}</span></div>)}
-  <h2>Repayment History</h2>
+  </>}
+  :{view==='repayments'&&<>
+  <h1>Repayment History</h1>
+  
   {!repayments.length&&!loading&&<p>No repayments recorded yet.</p>}
   {repayments.map(p=><div key={p.id} className="pg-tx"><div><strong>{p.method==='automatic'?'Automatic deduction':'Manual repayment'}</strong><small> · {fmt(p.created_at)} · {p.loan_id}</small></div><span>{money(Number(p.amount_tzs))}</span></div>)}
+  </>}
  </section>;
 }

@@ -99,22 +99,6 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
   const [statementTo,setStatementTo]=useState(new Date().toISOString().slice(0,10));
   const [statementError,setStatementError]=useState('');
   const data = walletInfo(account);
-  const [feePayments,setFeePayments]=useState<{id:string;amount_tzs:number;created_at:string}[]>([]);
-  const [feeLoading,setFeeLoading]=useState(true);
-  const [feeError,setFeeError]=useState('');
-  useEffect(()=>{let active=true;
-   async function loadFee(){setFeeLoading(true);setFeeError('');
-    const result=await supabase.from('pg_demo_fee_payments').select('id,amount_tzs,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(1000);
-    if(!active)return;
-    if(result.error)setFeeError(result.error.message);else setFeePayments((result.data||[]) as {id:string;amount_tzs:number;created_at:string}[]);
-    setFeeLoading(false);
-   }
-   void loadFee();window.addEventListener('playgo:wallet-updated',loadFee);
-   return()=>{active=false;window.removeEventListener('playgo:wallet-updated',loadFee);};
-  },[supabase,userId]);
-  const feePaid=feePayments.reduce((sum,p)=>sum+Number(p.amount_tzs),0);
-  const feeMonths=Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-5+i);const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');return {key,label:d.toLocaleDateString('en-GB',{month:'short'}),amount:feePayments.filter(p=>p.created_at.slice(0,7)===key).reduce((n,p)=>n+Number(p.amount_tzs),0)};});
-  const maxFeeMonth=Math.max(1,...feeMonths.map(m=>m.amount));
   const money = (n: number) => 'TZS ' + n.toLocaleString('en-TZ');
   async function downloadStatement(){
    setStatementBusy(true);setStatementError('');
@@ -162,19 +146,6 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
       <Link className="pg-service-tile" to="/government-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Government Loan</strong><small>HESLB allocation status</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/quick-loan" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
     </div>
-    <section className="pg-feature-card pg-service-fee">
-      <div className="pg-services-heading"><h2>Fee Payment Progress</h2></div>
-      <p className="pg-service-institution">{institution}</p>
-      {feeLoading?<p>Loading payments…</p>:feeError?<p role="alert">Unable to load payments: {feeError}</p>:<>
-       <div className="pg-fee-grid"><p>Paid via PlayGo<b>{money(feePaid)}</b></p><p>Payments<b>{feePayments.length}</b></p></div>
-       <p className="pg-note">Your last six months of tuition payments through PlayGo</p>
-       <div className="pg-fee-trend" role="img" aria-label={feeMonths.map(m=>m.label+' '+money(m.amount)).join('; ')}>
-        {feeMonths.map(m=><div key={m.key} className="pg-fee-trend-month"><strong>{m.amount?money(m.amount):'—'}</strong><div className="pg-fee-trend-track"><div style={{height:(m.amount?Math.max(5,m.amount/maxFeeMonth*100):0)+'%'}}/></div><small>{m.label}</small></div>)}
-       </div>
-       <div className="pg-fee-recent"><strong>Recent Fee Payments</strong>{feePayments.slice(0,4).map(p=><div key={p.id} className="pg-tx"><span>{new Date(p.created_at).toLocaleDateString('en-GB')}</span><b>{money(p.amount_tzs)}</b></div>)}{!feePayments.length&&<p>No tuition payments recorded yet.</p>}</div>
-      </>}
-      <Link className="pg-button" to="/pay-fee" state={{from:"/services"}}>Pay Tuition Fee →</Link>
-    </section>
     <section className="pg-feature-card pg-statement-card">
      <div className="pg-services-heading"><h2>Account Statement</h2><span>PDF</span></div>
      <p className="pg-note">A detailed statement with dates, references, credits, debits and running balances.</p>

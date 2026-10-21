@@ -200,3 +200,7 @@
 .pg-fee-hub-tile strong{font-size:inherit;font-weight:700;line-height:1.35}
 .pg-fee-hub-tile:hover,.pg-fee-hub-tile:focus-visible{border-color:#e51a2b;box-shadow:0 7px 22px #00000010;transform:translateY(-1px)}
 @media(max-width:480px){.pg-fee-hub-grid{gap:12px}.pg-fee-hub-tile{min-height:82px;padding:16px;border-radius:16px}.pg-fee-hub-tile strong{font-size:inherit}}
+
+/* Reserve space for persistent student navigation on dedicated pages. */
+body:has(.pg-bottom-nav) .pg-page{padding-bottom:calc(115px + env(safe-area-inset-bottom))}
+body:has(.pg-bottom-nav) .pg-demo-footer{margin-bottom:8px}

@@ -111,6 +111,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   setRepayAmount('');await load();window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <section className="pg-feature-card">
+  {view!=='overview'&&<Link to="/quick-loan" className="pg-back">← Back to Quick Loan</Link>}
   {loading&&<p role="status">Loading loan records…</p>}
   {error&&<p className="pg-error" role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}

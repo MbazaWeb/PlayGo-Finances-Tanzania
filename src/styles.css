@@ -187,3 +187,8 @@
 .pg-fee-recent{margin:16px 0}
 .pg-fee-recent>.pg-tx{display:flex;justify-content:space-between;gap:12px}
 @media(max-width:480px){.pg-fee-trend{gap:5px}.pg-fee-trend-month strong{font-size:9px}.pg-fee-trend-track{height:72px}}
+
+/* Profile shortcut beside the global notification bell */
+.pg-global-profile{position:fixed;top:16px;right:max(76px,calc((100vw - 980px)/2 + 58px));z-index:1000;width:45px;height:45px;border:1px solid #e5e7eb;border-radius:50%;background:#fff;box-shadow:0 4px 18px #00000012;color:#e51a2b;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:background .15s,transform .15s}
+.pg-global-profile:hover,.pg-global-profile:focus-visible{background:#fff0f2;transform:translateY(-1px)}
+@media(max-width:600px){.pg-global-profile{top:12px;right:68px;width:42px;height:42px}}

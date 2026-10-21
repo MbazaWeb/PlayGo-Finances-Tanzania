@@ -121,6 +121,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
    <Link to="/quick-loan?view=credit" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Credit Score</span></Link>
    <Link to="/quick-loan?view=loans" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Loan History</span></Link>
    <Link to="/quick-loan?view=repayments" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Repayment History</span></Link>
+   <Link to="/pay-fee?view=progress" style={{display:'flex',alignItems:'center',minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Fee Payment Progress</span></Link>
   </nav>  </>}
   {view==='active'&&<>
   <h1>Loan Details & Repayment</h1>

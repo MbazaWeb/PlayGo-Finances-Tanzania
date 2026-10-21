@@ -44,10 +44,10 @@ function Login({ signIn }: { signIn: (number: string) => void }) {
     const number = String(data.get('accountNumber') || '').trim().toUpperCase();
     const pin = String(data.get('demoPin') || '');
     const match = accounts().find(a => a.accountNumber === number && a.demoPin === pin);
-    if (!match) { setError('Account number or demo PIN is incorrect.'); return; }
+    if (!match) { setError('Account number or PIN is incorrect.'); return; }
     signIn(match.accountNumber); navigate('/dashboard', { replace: true });
   }
-  return <main className="pg-page"><section className="pg-panel"><Link to="/welcome" className="pg-back">← Back</Link><img className="pg-logo pg-small" src={LOGO} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES · DEMO</p><h1>Student Login</h1><p>Enter your PlayGo account number and demo PIN.</p><form onSubmit={submit} className="pg-form"><label htmlFor="accountNumber">Account Number</label><input id="accountNumber" name="accountNumber" autoComplete="username" required placeholder="09XXXXXXXX" /><label htmlFor="demoPin">Demo PIN</label><input id="demoPin" name="demoPin" type="password" inputMode="numeric" pattern="[0-9]{4,6}" autoComplete="off" required placeholder="4–6 digit demo PIN" /><button className="pg-button" type="submit">Log In →</button>{error && <p className="pg-error" role="alert">{error}</p>}</form><p className="pg-switch">Don't have an account? <Link to="/register">Sign Up</Link></p><p className="pg-note">Local demo only. This is not real authentication.</p></section></main>;
+  return <main className="pg-page"><section className="pg-panel"><Link to="/welcome" className="pg-back">← Back</Link><img className="pg-logo pg-small" src={LOGO} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES</p><h1>Student Login</h1><p>Enter your PlayGo account number and PIN.</p><form onSubmit={submit} className="pg-form"><label htmlFor="accountNumber">Account Number</label><input id="accountNumber" name="accountNumber" autoComplete="username" required placeholder="09XXXXXXXX" /><label htmlFor="demoPin">PIN</label><input id="demoPin" name="demoPin" type="password" inputMode="numeric" pattern="[0-9]{4,6}" autoComplete="off" required placeholder="4–6 digit PIN" /><button className="pg-button" type="submit">Log In →</button>{error && <p className="pg-error" role="alert">{error}</p>}</form><p className="pg-switch">Don't have an account? <Link to="/register">Sign Up</Link></p><p className="pg-note">Local demo only. This is not real authentication.</p></section></main>;
 }
 function Register() {
   const navigate = useNavigate();
@@ -65,25 +65,25 @@ function Register() {
     const confirmPin = String(d.get('confirmPin') || '');
     if (!fullName || !institution || !admission || !mobileNumber || !email || !/^[0-9]{20}$/.test(nida)) { setError('Complete all required fields. NIDA must contain 20 digits.'); return; }
     if (!/^(?:0[67]\d{8}|255[67]\d{8}|\+255[67]\d{8})$/.test(mobileNumber.replace(/[\s-]/g, ''))) { setError('Enter a valid Tanzanian mobile number.'); return; }
-    if (!/^[0-9]{4,6}$/.test(demoPin) || demoPin !== confirmPin) { setError('Demo PIN must be 4–6 digits and match confirmation.'); return; }
-    if (accounts().some(a => a.institution.toLowerCase() === institution.toLowerCase() && a.admission.toLowerCase() === admission.toLowerCase())) { setError('A demo account already exists for this institution and registration number.'); return; }
-    if (accounts().some(a => a.accountNumber === makeAccountNumber(mobileNumber))) { setError('This mobile number already has a demo account.'); return; }
+    if (!/^[0-9]{4,6}$/.test(demoPin) || demoPin !== confirmPin) { setError('PIN must be 4–6 digits and match confirmation.'); return; }
+    if (accounts().some(a => a.institution.toLowerCase() === institution.toLowerCase() && a.admission.toLowerCase() === admission.toLowerCase())) { setError('A account already exists for this institution and registration number.'); return; }
+    if (accounts().some(a => a.accountNumber === makeAccountNumber(mobileNumber))) { setError('This mobile number already has a account.'); return; }
     // NIDA is checked for format only and deliberately never persisted.
     const pending: Pending = { fullName, institution, admission, mobileNumber, email, demoPin };
     sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
     navigate('/otp');
   }
-  return <main className="pg-page"><section className="pg-panel"><Link to="/login" className="pg-back">← Back to login</Link><img className="pg-logo pg-small" src={LOGO} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES · DEMO</p><h1>Create student account</h1><p>All fields are required. Verification is simulated.</p><form className="pg-form" onSubmit={submit}>
+  return <main className="pg-page"><section className="pg-panel"><Link to="/login" className="pg-back">← Back to login</Link><img className="pg-logo pg-small" src={LOGO} alt="PlayGo Tanzania Limited" /><p className="pg-eyebrow">PLAYGO FINANCES</p><h1>Create student account</h1><p>All fields are required. Verification is not connected to official records.</p><form className="pg-form" onSubmit={submit}>
     <label htmlFor="fullName">Full Name</label><input id="fullName" name="fullName" autoComplete="name" required placeholder="Student full name" />
     <label htmlFor="institution">Institution / University</label><input id="institution" name="institution" required placeholder="Your institution" />
     <label htmlFor="admission">Admission / Registration Number</label><input id="admission" name="admission" required placeholder="Your student registration number" />
     <label htmlFor="mobileNumber">Mobile Number</label><input id="mobileNumber" name="mobileNumber" type="tel" autoComplete="tel" required placeholder="0712345678" />
     <label htmlFor="nida">NIDA Number (NIN)</label><input id="nida" name="nida" inputMode="numeric" pattern="[0-9]{20}" maxLength={20} required placeholder="20-digit NIDA number" /><small className="pg-hint">Format checked only; not stored.</small>
     <label htmlFor="email">Email Address</label><input id="email" name="email" type="email" autoComplete="email" required placeholder="student@example.com" />
-    <label htmlFor="demoPin">Create Demo PIN</label><input id="demoPin" name="demoPin" type="password" inputMode="numeric" pattern="[0-9]{4,6}" autoComplete="off" required placeholder="4–6 digits (not a real password)" />
-    <label htmlFor="confirmPin">Confirm Demo PIN</label><input id="confirmPin" name="confirmPin" type="password" inputMode="numeric" pattern="[0-9]{4,6}" autoComplete="off" required placeholder="Repeat demo PIN" />
+    <label htmlFor="demoPin">Create PIN</label><input id="demoPin" name="demoPin" type="password" inputMode="numeric" pattern="[0-9]{4,6}" autoComplete="off" required placeholder="4–6 digits (not a real password)" />
+    <label htmlFor="confirmPin">Confirm PIN</label><input id="confirmPin" name="confirmPin" type="password" inputMode="numeric" pattern="[0-9]{4,6}" autoComplete="off" required placeholder="Repeat PIN" />
     <button className="pg-button" type="submit">Continue to OTP →</button>{error && <p className="pg-error" role="alert">{error}</p>}
-  </form><p className="pg-switch">Already have an account? <Link to="/login">Log In</Link></p><p className="pg-note">This demo uses browser storage, not a secure database. Use fictional test details and a throwaway PIN.</p></section></main>;
+  </form><p className="pg-switch">Already have an account? <Link to="/login">Log In</Link></p><p className="pg-note">This version uses browser storage, not a secure database. Use fictional test details and a throwaway PIN.</p></section></main>;
 }
 function OTP() {
   const navigate = useNavigate();
@@ -96,28 +96,28 @@ function OTP() {
   const mobile = (() => { try { return (JSON.parse(raw) as Pending).mobileNumber; } catch { return ''; } })();
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (Date.now()>=challenge.expires||code!==challenge.code) { setError('Incorrect or expired demo OTP. Request a new code.'); return; }
+    if (Date.now()>=challenge.expires||code!==challenge.code) { setError('Incorrect or expired OTP. Request a new code.'); return; }
     sessionStorage.setItem('playgo.demo.otp-approved.v1', 'yes');sessionStorage.removeItem('playgo.demo.registration-otp');
     navigate('/verification', { replace: true });
   }
   return <main className="pg-page"><section className="pg-panel">
     <Link to="/register" className="pg-back">← Back to registration</Link>
     <img className="pg-logo pg-small" src={LOGO} alt="PlayGo Tanzania Limited" />
-    <p className="pg-eyebrow">PLAYGO FINANCES · DEMO</p>
+    <p className="pg-eyebrow">PLAYGO FINANCES</p>
     <h1>Verify Mobile Number</h1>
-    <p>Enter the six-digit demo OTP for {mobile}. No SMS is sent.</p>
-    <div className="pg-otp-hint">Demo OTP: <strong>{challenge.code}</strong></div><DemoOtpTimer expires={challenge.expires}/><button type="button" className="pg-button pg-outline" onClick={()=>{const next={code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS};setChallenge(next);sessionStorage.setItem('playgo.demo.registration-otp',JSON.stringify(next));setCode('');setError('');}}>Generate new demo OTP</button>
+    <p>Enter the six-digit OTP for {mobile}. No SMS is sent.</p>
+    <div className="pg-otp-hint">OTP: <strong>{challenge.code}</strong></div><DemoOtpTimer expires={challenge.expires}/><button type="button" className="pg-button pg-outline" onClick={()=>{const next={code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS};setChallenge(next);sessionStorage.setItem('playgo.demo.registration-otp',JSON.stringify(next));setCode('');setError('');}}>Generate new OTP</button>
     <form className="pg-form" onSubmit={submit}>
       <label htmlFor="otp">One-Time Password (OTP)</label>
       <input id="otp" name="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0,6))} placeholder="Enter 6-digit OTP" required />
       <button type="submit" className="pg-button">Verify & Continue →</button>
       {error && <p role="alert" className="pg-error">{error}</p>}
     </form>
-    <p className="pg-note">Demo only. This OTP does not verify ownership of a phone number.</p>
+    <p className="pg-note">This OTP does not verify ownership of a phone number.</p>
   </section></main>;
 }
 
-const checks = ['Registration details', 'Identity format check (demo)', 'Institution enrollment (simulated)', 'Demo account provisioning', 'Local data synchronization'];
+const checks = ['Registration details', 'Identity format check', 'Institution enrollment (not externally verified)', 'Account provisioning', 'Local data synchronization'];
 function Verification({ signIn }: { signIn: (number: string) => void }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -138,9 +138,9 @@ function Verification({ signIn }: { signIn: (number: string) => void }) {
       sessionStorage.removeItem(PENDING_KEY);
       sessionStorage.removeItem('playgo.demo.otp-approved.v1');
       setResult(created);
-    } catch { setError('Could not save demo account. Check browser storage settings and try again.'); }
+    } catch { setError('Could not save account. Check browser storage settings and try again.'); }
   }, [step, navigate]);
-  return <main className="pg-page"><section className="pg-panel"><p className="pg-eyebrow">PLAYGO FINANCES · DEMO</p><h1>System Checks</h1><p>Demonstration only: no official NIDA, university, or banking verification is performed.</p><div className="pg-progress-head"><span>{result ? 'Demo account ready' : 'Processing demo checks'}</span><strong>{Math.round(step / checks.length * 100)}%</strong></div><div className="pg-progress"><div style={{ width: `${step / checks.length * 100}%` }} /></div><div className="pg-steps">{checks.map((name, i) => <div className="pg-step" key={name}><span aria-hidden="true">{i < step ? '✓' : i === step ? '◌' : '○'}</span><div><strong>{name}</strong><small>{i < step ? 'Demo complete' : i === step ? 'In progress' : 'Waiting'}</small></div></div>)}</div>{result && <div className="pg-success" role="status"><strong>Welcome to PlayGo Finances!</strong><p>Congratulations, <b>{result.fullName}</b>. Your demo student account has been created.</p><p>Your PlayGo Account Number: <b>{result.accountNumber}</b></p><p>Keep this number for future demo logins.</p><button className="pg-button" onClick={() => { signIn(result.accountNumber); navigate('/dashboard', { replace: true }); }}>Continue to Dashboard →</button></div>}{error && <p className="pg-error" role="alert">{error}</p>}</section></main>;
+  return <main className="pg-page"><section className="pg-panel"><p className="pg-eyebrow">PLAYGO FINANCES</p><h1>System Checks</h1><p>No official NIDA, university, or banking verification is performed.</p><div className="pg-progress-head"><span>{result ? 'Account ready' : 'Processing checks'}</span><strong>{Math.round(step / checks.length * 100)}%</strong></div><div className="pg-progress"><div style={{ width: `${step / checks.length * 100}%` }} /></div><div className="pg-steps">{checks.map((name, i) => <div className="pg-step" key={name}><span aria-hidden="true">{i < step ? '✓' : i === step ? '◌' : '○'}</span><div><strong>{name}</strong><small>{i < step ? 'Complete' : i === step ? 'In progress' : 'Waiting'}</small></div></div>)}</div>{result && <div className="pg-success" role="status"><strong>Welcome to PlayGo Finances!</strong><p>Congratulations, <b>{result.fullName}</b>. Your demo student account has been created.</p><p>Your PlayGo Account Number: <b>{result.accountNumber}</b></p><p>Keep this number for future demo logins.</p><button className="pg-button" onClick={() => { signIn(result.accountNumber); navigate('/dashboard', { replace: true }); }}>Continue to Dashboard →</button></div>}{error && <p className="pg-error" role="alert">{error}</p>}</section></main>;
 }
 type StudentTab = 'home' | 'merchant' | 'services' | 'profile';
 const tabs: { key: StudentTab; title: string; icon: string; route: string }[] = [
@@ -162,7 +162,7 @@ function StudentArea({ session, signOut, active }: { session: string | null; sig
   if (!account) return <Navigate to="/login" replace />;
   return <main className="pg-page pg-student-page"><section className="pg-panel">
     <img className="pg-logo pg-small" src={LOGO} alt="PlayGo Tanzania Limited" />
-    <p className="pg-eyebrow">PLAYGO FINANCES · DEMO</p>
+    <p className="pg-eyebrow">PLAYGO FINANCES</p>
     {active === 'home' && <>
       <h1>Hello, {account.fullName.split(' ')[0]}!</h1>
       <p>Welcome to your student wallet.</p>
@@ -175,7 +175,7 @@ function StudentArea({ session, signOut, active }: { session: string | null; sig
       <ServicesPage account={account.accountNumber} institution={account.institution} />
     </>}
     {active === 'profile' && <>
-      <h1>My Profile</h1><p>Your locally saved demo student information.</p>
+      <h1>My Profile</h1><p>Your locally saved student information.</p>
       <div className="pg-details">
         <p><strong>Full Name</strong><span>{account.fullName}</span></p>
         <p><strong>Account Number</strong><span>{account.accountNumber}</span></p>
@@ -187,7 +187,7 @@ function StudentArea({ session, signOut, active }: { session: string | null; sig
       <LinkedAccounts account={account.accountNumber} />
       <button className="pg-button pg-outline" onClick={() => { signOut(); navigate('/login', { replace: true }); }}>Log Out</button>
     </>}
-    <p className="pg-note">Demo only. Data is stored in this browser; no real banking or verification.</p>
+    <p className="pg-note">Data is stored in this browser; no real banking or verification.</p>
   </section><StudentNavigation active={active} /></main>;
 }
 function WalletRoute({ session, page }: { session: string | null; page: 'fee'|'transfer'|'topup'|'otp'|'status'|'history' }) {
@@ -197,7 +197,7 @@ function WalletRoute({ session, page }: { session: string | null; page: 'fee'|'t
   return <main className="pg-page pg-student-page"><section className="pg-panel">
     {page === 'fee' && <FeePage account={account.accountNumber} />}
     {page === 'transfer' && <TransferPage account={account.accountNumber} findAccount={findAccount} />}
-    {page === 'topup' && <p>Use the secure student wallet for linked NMB demo top-ups.</p>}
+    {page === 'topup' && <p>Use the secure student wallet for linked NMB top-ups.</p>}
     {page === 'otp' && <TransactionOtp account={account.accountNumber} findAccount={findAccount} />}
     {page === 'status' && <TransactionStatus account={account.accountNumber} />}
     {page === 'history' && <><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Transaction History</h1><History account={account.accountNumber} /></>}

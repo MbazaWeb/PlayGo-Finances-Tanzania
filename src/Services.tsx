@@ -93,6 +93,8 @@ export function QuickLoan({account}:{account:string}){
  </section>;
 }
 export function ServicesPage({ account, institution, userId, supabase }: { account: string; institution: string; userId: string; supabase: SupabaseClient }) {
+  const [params]=useSearchParams();
+  const view=params.get('view')||'overview';
   const [statementBusy,setStatementBusy]=useState(false);
   const [statementPeriod,setStatementPeriod]=useState('3');
   const [statementFrom,setStatementFrom]=useState('');
@@ -135,7 +137,7 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
    finally{setStatementBusy(false);}
   }
   return <>
-    <h1>Student Services</h1>
+    {view==='overview'&&<><h1>Student Services</h1>
     <p>Manage your student payments and financial records in one place.</p>
     
     <div className="pg-services-grid">
@@ -145,22 +147,28 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
       <Link className="pg-service-tile" to="/linked-accounts"><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Linked Accounts</strong><small>NMB Bank only</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/government-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Government Loan</strong><small>HESLB allocation status</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/quick-loan" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/services?view=support"><span className="pg-service-symbol" aria-hidden="true">☏</span><strong>Support</strong><small>Statements, requests and inquiries</small><span className="pg-service-arrow">›</span></Link>
     </div>
-    <section className="pg-feature-card pg-statement-card">
+    </>}
+    {view!=='overview'&&<Link className="pg-back" to={view==='support'?'/services':'/services?view=support'}>← {view==='support'?'Back to Services':'Back to Support'}</Link>}
+    {view==='support'&&<section className="pg-feature-card"><h1>Support</h1><nav className="pg-fee-hub-grid" aria-label="Support navigation"><Link className="pg-fee-hub-tile" to="/services?view=statement"><strong>Account Statement</strong></Link><Link className="pg-fee-hub-tile" to="/services?view=requests"><strong>Service Requests</strong></Link><Link className="pg-fee-hub-tile" to="/services?view=inquiries"><strong>My Inquiries</strong></Link></nav></section>}
+    {view==='statement'&&<><h1>Account Statement</h1><section className="pg-feature-card pg-statement-card">
      <div className="pg-services-heading"><h2>Account Statement</h2><span>PDF</span></div>
      <p className="pg-note">A detailed statement with dates, references, credits, debits and running balances.</p>
      <div className="pg-statement-filters"><label htmlFor="statement-period">Statement period</label><select id="statement-period" value={statementPeriod} onChange={e=>setStatementPeriod(e.target.value)}><option value="1">Last 1 month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="custom">Custom date range</option></select>
      {statementPeriod==='custom'&&<div className="pg-statement-dates"><div><label htmlFor="statement-from">From</label><input id="statement-from" type="date" value={statementFrom} onChange={e=>setStatementFrom(e.target.value)}/></div><div><label htmlFor="statement-to">To</label><input id="statement-to" type="date" value={statementTo} onChange={e=>setStatementTo(e.target.value)}/></div></div>}</div>
      <button className="pg-button" type="button" disabled={statementBusy} onClick={()=>void downloadStatement()}>{statementBusy?'Preparing statement…':'Download PDF Statement ↓'}</button>{statementError&&<p role="alert" className="pg-error">{statementError}</p>}
     </section>
-    <SupportInbox supabase={supabase} userId={userId} role="student" />
+    </>}
+    {view==='requests'&&<><h1>Service Requests</h1><SupportInbox supabase={supabase} userId={userId} role="student" studentView="requests"/></>}
+    {view==='inquiries'&&<><h1>My Inquiries</h1><SupportInbox supabase={supabase} userId={userId} role="student" studentView="inquiries"/></>}
   </>;
 }
 
 
 type SupportInquiry={id:string;user_id:string;destination:'platform'|'institution';institution_id:string|null;category:string;subject:string;status:string;created_at:string;updated_at:string;transaction_id:string|null;transaction_date:string|null;transaction_type:string|null};
 type SupportMessage={id:string;inquiry_id:string;sender_id:string;body:string;created_at:string};
-export function SupportInbox({supabase,userId,role,institutionId}:{supabase:SupabaseClient;userId:string;role:'student'|'admin'|'institution';institutionId?:string}){
+export function SupportInbox({supabase,userId,role,institutionId,studentView}:{supabase:SupabaseClient;userId:string;role:'student'|'admin'|'institution';institutionId?:string;studentView?:'requests'|'inquiries'}){
  const [tickets,setTickets]=useState<SupportInquiry[]>([]),[messages,setMessages]=useState<SupportMessage[]>([]);
  const [transactionId,setTransactionId]=useState(''),[transactionRows,setTransactionRows]=useState<{id:string;kind:string;created_at:string;amount_tzs:number}[]>([]);
  const [selected,setSelected]=useState(''),[destination,setDestination]=useState('platform'),[linkedInstitution,setLinkedInstitution]=useState(''),[institutions,setInstitutions]=useState<{id:string;name:string}[]>([]);
@@ -193,7 +201,7 @@ export function SupportInbox({supabase,userId,role,institutionId}:{supabase:Supa
  async function changeStatus(status:string){if(!selected)return;setBusy(true);setError('');try{const r=await supabase.from('pg_support_inquiries').update({status}).eq('id',selected);if(r.error)throw r.error;await refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
  const current=tickets.find(t=>t.id===selected);
  return <section className="pg-feature-card pg-support"><div className="pg-services-heading"><h2>{role==='student'?'Service Requests':role==='admin'?'Platform Inquiries':'Institution Inquiries'}</h2><span>{tickets.length} inquiries</span></div>
- {role==='student'&&<form className="pg-form pg-services-form" onSubmit={e=>void createTicket(e)}>
+ {role==='student'&&studentView!=='inquiries'&&<form className="pg-form pg-services-form" onSubmit={e=>void createTicket(e)}>
  <label htmlFor="support-destination">Send inquiry to</label><select id="support-destination" value={destination} onChange={e=>setDestination(e.target.value)}><option value="platform">PlayGo Support</option><option value="institution" disabled={!institutions.length}>My Institution</option></select>
  {destination==='institution'&&<><label htmlFor="support-institution">Institution</label><select id="support-institution" value={linkedInstitution} onChange={e=>setLinkedInstitution(e.target.value)} required><option value="">Select institution</option>{institutions.map(i=><option value={i.id} key={i.id}>{i.name}</option>)}</select></>}
  <label htmlFor="support-category">Request type</label><select id="support-category" value={category} onChange={e=>setCategory(e.target.value)}>{options.map(x=><option key={x}>{x}</option>)}</select>
@@ -201,11 +209,11 @@ export function SupportInbox({supabase,userId,role,institutionId}:{supabase:Supa
  <label htmlFor="support-transaction">Transaction reference (optional)</label><select id="support-transaction" value={transactionId} onChange={e=>setTransactionId(e.target.value)}><option value="">No transaction selected</option>{transactionRows.map(t=><option key={t.id} value={t.id}>{t.kind.replace(/_/g,' ')} · {new Date(t.created_at).toLocaleDateString('en-GB')} · TZS {Number(t.amount_tzs).toLocaleString('en-TZ')} · {t.id.slice(0,8)}</option>)}</select>{transactionId&&<div className="pg-details">{(()=>{const t=transactionRows.find(x=>x.id===transactionId);return t?<><p><strong>Transaction ID</strong><span>{t.id}</span></p><p><strong>Date</strong><span>{new Date(t.created_at).toLocaleString('en-GB')}</span></p><p><strong>Transaction type</strong><span>{t.kind.replace(/_/g,' ')}</span></p></>:null})()}</div>}<label htmlFor="support-description">Describe your inquiry</label><textarea id="support-description" required minLength={10} maxLength={2000} rows={4} value={body} onChange={e=>setBody(e.target.value)}/>
  <button className="pg-button" disabled={busy} type="submit">{busy?'Submitting…':'Send Inquiry'}</button></form>}
  {error&&<p className="pg-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
- <h3>{role==='student'?'My Inquiries':'Incoming Inquiries'}</h3>
+ {studentView!=='requests'&&<><h3>{role==='student'?'My Inquiries':'Incoming Inquiries'}</h3>
  {loading?<p>Loading inquiries…</p>:!tickets.length?<p>No inquiries yet.</p>:<div className="pg-support-layout"><div className="pg-support-tickets">{tickets.map(t=><button key={t.id} type="button" className={selected===t.id?'pg-support-ticket active':'pg-support-ticket'} onClick={()=>setSelected(t.id)}><strong>{t.subject}</strong><small>{t.category} · {new Date(t.created_at).toLocaleDateString('en-GB')}</small><span>{t.status.replace('_',' ')}</span><small>#{t.id.slice(0,8)}</small></button>)}</div>
  <div className="pg-support-thread">{current?<><h3>{current.subject}</h3><p className="pg-note">{current.category} · {current.destination==='platform'?'PlayGo Support':'Institution Support'} · {current.status.replace('_',' ')}</p>{current.transaction_id&&<div className="pg-details"><p><strong>Transaction ID</strong><span>{current.transaction_id}</span></p><p><strong>Transaction Date</strong><span>{current.transaction_date?new Date(current.transaction_date).toLocaleString('en-GB'):'-'}</span></p><p><strong>Transaction Type</strong><span>{current.transaction_type?.replace(/_/g,' ')}</span></p></div>}
  <div className="pg-support-messages">{messages.filter(m=>m.inquiry_id===current.id).map(m=><div key={m.id} className={m.sender_id===userId?'pg-support-message mine':'pg-support-message'}><strong>{m.sender_id===current.user_id?'Student':current.destination==='platform'?'PlayGo Support':'Institution Support'}</strong><p>{m.body}</p><small>{new Date(m.created_at).toLocaleString('en-GB')}</small></div>)}</div>
  {role!=='student'&&<div className="pg-support-status"><label htmlFor="support-status">Status</label><select id="support-status" value={current.status} disabled={busy} onChange={e=>void changeStatus(e.target.value)}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>}
  {current.status!=='closed'&&<form className="pg-form" onSubmit={e=>void sendReply(e)}><label htmlFor="support-reply">Reply</label><textarea id="support-reply" rows={3} required maxLength={2000} value={reply} onChange={e=>setReply(e.target.value)}/><button className="pg-button" type="submit" disabled={busy||!reply.trim()}>Send Reply</button></form>}</>:<p>Select an inquiry to view the conversation.</p>}</div></div>}
- </section>
+ </>} </section>
 }

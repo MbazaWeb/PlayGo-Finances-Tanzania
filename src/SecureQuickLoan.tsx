@@ -63,6 +63,8 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const [borrow,setBorrow]=useState('');
  const [term,setTerm]=useState('30');
  const [repayAmount,setRepayAmount]=useState('');
+ const [loanQuote,setLoanQuote]=useState<{interest_tzs:number;total_repayment_tzs:number}|null>(null);
+ const [quoteLoading,setQuoteLoading]=useState(false);
  const [selected,setSelected]=useState('');
  const load=useCallback(async()=>{
   const [l,r,w,eligibility,events]=await Promise.all([
@@ -84,12 +86,11 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const total=current?effectiveOutstanding(current):0;
  const base=Number(borrow);
  const days=Number(term);
- const rate=days===1?2:days===3?2.5:days===7?3:days===14?4:5;
  const maxLoan=credit?Number(credit.max_loan_tzs):0;
  const valid=Number.isSafeInteger(base)&&base>=5000&&base<=maxLoan;
- const interest=valid?Math.round(base*rate/100):0;
+ useEffect(()=>{if(!valid){setLoanQuote(null);setQuoteLoading(false);return;}let active=true;setLoanQuote(null);setQuoteLoading(true);void supabase.rpc('pg_financial_quote',{p_kind:'loan',p_amount:base,p_term_days:days}).then(({data,error})=>{if(!active)return;setLoanQuote(!error&&Array.isArray(data)?data[0]:null);setQuoteLoading(false);});return()=>{active=false};},[supabase,base,days,valid]);
  async function request(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();if(!valid||busy||active.length)return;
+  e.preventDefault();if(!valid||busy||active.length||!loanQuote||quoteLoading)return;
   setBusy(true);setNotice('');setError('');
   const res=await supabase.rpc('pg_issue_demo_quick_loan',{p_id:crypto.randomUUID(),p_amount:base,p_term_days:days});
   setBusy(false);
@@ -154,10 +155,11 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   {!active.length&&!loading&&<>
    <form className="pg-form" onSubmit={request}>
     <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`5,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>
-    <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours · 2%</option><option value="3">3 days · 2.5%</option><option value="7">7 days · 3%</option><option value="14">14 days · 4%</option><option value="30">30 days · 5%</option></select>
+    <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select>
 
 
-    <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Loan'}</button>
+    {valid&&<div className="pg-details" aria-live="polite">{quoteLoading?<p>Calculating loan charges…</p>:loanQuote?<><p><strong>Loan amount</strong><span>{money(base)}</span></p><p><strong>Interest amount</strong><span>{money(Number(loanQuote.interest_tzs))}</span></p><p><strong>Total repayment</strong><span>{money(Number(loanQuote.total_repayment_tzs))}</span></p></>:<p>Unable to calculate loan charges. Try again.</p>}</div>}
+    <button className="pg-button" type="submit" disabled={busy||!valid||quoteLoading||!loanQuote}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
   </>}
   {view==='credit'&&<>

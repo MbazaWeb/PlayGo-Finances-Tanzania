@@ -89,11 +89,11 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const total=current?effectiveOutstanding(current):0;
  const base=Number(borrow);
  const days=Number(term);
- const maxLoan=credit?Number(credit.max_loan_tzs):0;
- const valid=Number.isSafeInteger(base)&&base>=5000&&base<=maxLoan;
+ const maxLoan=credit?Number(credit.available_tzs):0;
+ const valid=Number.isSafeInteger(base)&&base>=1000&&base<=maxLoan;
  useEffect(()=>{if(!valid){setLoanQuote(null);setQuoteLoading(false);return;}let active=true;setLoanQuote(null);setQuoteLoading(true);void supabase.rpc('pg_financial_quote',{p_kind:'loan',p_amount:base,p_term_days:days}).then(({data,error})=>{if(!active)return;setLoanQuote(!error&&Array.isArray(data)?data[0]:null);setQuoteLoading(false);});return()=>{active=false};},[supabase,base,days,valid]);
  async function request(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();if(!valid||busy||active.length||!loanQuote||quoteLoading||!borrowStatus?.can_borrow)return;
+  e.preventDefault();if(!valid||busy||!loanQuote||quoteLoading||!borrowStatus?.can_borrow)return;
   setBusy(true);setNotice('');setError('');
   const res=await supabase.rpc('pg_issue_demo_quick_loan',{p_id:crypto.randomUUID(),p_amount:base,p_term_days:days});
   setBusy(false);
@@ -120,9 +120,10 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   {notice&&<p role="status">{notice}</p>}
   {view==='overview'&&<>
   <h1>Personal Boost Loan</h1>
+  <section aria-label="Borrowing Status" role="status" style={{padding:18,border:'1px solid #d9dde3',borderRadius:18,margin:'18px 0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><strong>Borrowing Status</strong><span style={{borderRadius:99,padding:'5px 12px',fontWeight:700,background:borrowStatus?.can_borrow?'#e6f5ed':'#fff1ed',color:borrowStatus?.can_borrow?'#126b43':'#b34015'}}>{borrowStatus?.can_borrow?'Active':'Inactive'}</span></div><p>{borrowStatus?.status==='reactivation_required'?'Reactivation Required':borrowStatus?.reason||'Checking eligibility…'}</p>{borrowStatus?.status==='reactivation_required'&&<><h3>{Math.min(5,borrowStatus.eligible_transactions)} / 5 eligible transactions</h3><div role="progressbar" aria-label="Borrowing reactivation progress" aria-valuenow={Math.min(5,borrowStatus.eligible_transactions)} aria-valuemin={0} aria-valuemax={5} style={{height:12,background:'#e5e7eb',borderRadius:20,overflow:'hidden'}}><div style={{height:'100%',width:Math.min(100,borrowStatus.eligible_transactions*20)+'%',background:'#d02736'}}/></div><p>Complete {Math.max(0,5-borrowStatus.eligible_transactions)} more eligible transactions to reactivate borrowing.</p></>}{borrowStatus?.can_borrow?<p><strong>Available to borrow: {money(maxLoan)}</strong></p>:<button type="button" disabled style={{width:'100%',padding:12,borderRadius:30}}>Borrow Unavailable</button>}</section>
   <div className="pg-details"><p><strong>Borrowing Status</strong><span>{borrowStatus?.can_borrow?'Active':borrowStatus?borrowStatus.status==='reactivation_required'?`Inactive · ${borrowStatus.eligible_transactions}/${borrowStatus.required_transactions} transactions`:borrowStatus.status==='defaulted'?'Inactive · Overdue':'Inactive · Active loan':'Checking…'}</span></p><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
   <nav aria-label="Quick Loan sections" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:12,marginTop:24}}>
-   <Link to={current?'/quick-loan?view=active':'/quick-loan?view=request'} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>{current?'Active Loan':'Request Loan'}</span></Link>
+   <Link to={maxLoan<1000&&current?'/quick-loan?view=active':'/quick-loan?view=request'} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>{maxLoan<1000&&current?'Active Loan':'Request Loan'}</span></Link>
    <Link to="/quick-loan?view=credit" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Credit Score</span></Link>
    <Link to="/quick-loan?view=loans" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Loan History</span></Link>
    <Link to="/quick-loan?view=repayments" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Repayment History</span></Link>
@@ -156,10 +157,12 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   </>}
   {view==='request'&&<>
   <h1>Request Loan</h1>
+  <p className="pg-note">Remaining borrowing capacity: {money(maxLoan)} of {money(Number(credit?.max_loan_tzs||0))}. You may request multiple loans within your total limit.</p>
   {!loading&&borrowStatus&&!borrowStatus.can_borrow&&<div className="pg-feature-card" role="status" aria-live="polite"><strong>Borrowing Inactive · {borrowStatus.status==='defaulted'?'Overdue Loan':borrowStatus.status==='reactivation_required'?'Reactivation Required':'Active Loan'}</strong><p>{borrowStatus.reason}</p>{borrowStatus.required_transactions>0&&<p>Eligible transactions: {borrowStatus.eligible_transactions} / {borrowStatus.required_transactions}</p>}{active.length>0&&<Link to="/quick-loan?view=active">View / Repay Loan →</Link>}</div>}
-  {!active.length&&!loading&&borrowStatus?.can_borrow&&<>
+  {!loading&&borrowStatus?.can_borrow&&maxLoan<1000&&<p role="status">Your current borrowing limit is fully allocated. Repay an active loan to restore capacity.</p>}
+  {!loading&&borrowStatus?.can_borrow&&maxLoan>=1000&&<>
    <form className="pg-form" onSubmit={request}>
-    <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`5,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>
+    <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="1000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`1,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>
     <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select>
 
 

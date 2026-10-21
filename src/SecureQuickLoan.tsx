@@ -92,7 +92,8 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
    <form className="pg-form" onSubmit={request}>
     <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max="20000" step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder="5,000 – 20,000"/>
     <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours · 2%</option><option value="3">3 days · 2.5%</option><option value="7">7 days · 3%</option><option value="14">14 days · 4%</option><option value="30">30 days · 5%</option></select>
-    <p>Repayment: {valid?money(base+interest):'Enter amount'} (including {rate}% interest). Loan approval is subject to eligibility.</p>
+
+
     <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
   <h2>Loan History</h2>

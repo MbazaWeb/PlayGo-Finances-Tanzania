@@ -44,7 +44,7 @@ export function creditApprovedDemoLoan(account:string,loan:{id:string;amount:num
  if(s.processed.includes(key))return false;
  const balance=s.balances[account]||0;if(!Number.isSafeInteger(balance+loan.amount))return false;
  s.balances[account]=balance+loan.amount;s.processed.push(key);
- s.transactions.push({id:key,kind:'Personal Boost Loan · Demo Credit',amount:loan.amount,from:'Demo loan simulation',to:account,at:new Date().toISOString(),note:'SIMULATED loan principal; repayment liability tracked separately. No real funds disbursed.'});
+ s.transactions.push({id:key,kind:'Personal Boost Loan Credit',amount:loan.amount,from:'PlayGo loan account',to:account,at:new Date().toISOString(),note:'Loan principal credited to PlayGo wallet; repayment liability tracked separately. No external funds disbursed.'});
  save(s);window.dispatchEvent(new Event('playgo:wallet-updated'));return true;
 }
 type DemoRow={id:string;kind:string;amount_tzs:number;fee_tzs:number;delta_tzs:number;note:string;created_at:string};
@@ -149,7 +149,7 @@ export function AddMoneyPage({account,supabase,userId}:{account:string;supabase:
   setOtp('');setOtpChallenge({code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS});setReview({amount:n,provider:'NMB Bank',number:bank.account_number});
  }
  async function confirmDemoTopup(){if(!review)return;setError('');if(!otpChallenge||Date.now()>otpChallenge.expires||otp!==otpChallenge.code){setError('Invalid or expired OTP.');return;}
- const {data,error:e}=await supabase.rpc('pg_record_demo_transaction',{p_id:id(),p_kind:'topup',p_amount:review.amount,p_note:'SIMULATED ONLY · NMB source (not debited)'});
+ const {data,error:e}=await supabase.rpc('pg_record_demo_transaction',{p_id:id(),p_kind:'topup',p_amount:review.amount,p_note:'NMB source (not debited)'});
  if(e){setError('Top-up was not saved: '+e.message);return;}
  setBalance(Number(data));window.dispatchEvent(new Event('playgo:wallet-updated'));
  setMessage('Top-up recorded in PlayGo. Net credited: '+money(Number(quote?.net_credit_tzs||0))+'. No real money transferred.');
@@ -215,7 +215,7 @@ export function LinkedAccounts({account, supabase, userId}:{account:string;supab
      {error&&<p className="pg-error" role="alert">{error}</p>}
    </form>}
    {!loadingSaved&&step==='otp'&&<><h3>Confirm bank linking</h3><p>Step 2 of 3 · OTP Verification</p><div className="pg-details"><p><strong>Verification code</strong><span style={{fontVariantNumeric:'tabular-nums'}}>{demoOtp}</span></p><p><strong>Mobile</strong><span>{masked(mobile)}</span></p></div><DemoOtpTimer expires={bankOtpExpires}/><form className="pg-form" onSubmit={confirmOtp}><label htmlFor="nmb-otp">Six-digit demonstration code</label><input id="nmb-otp" required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}/><button className="pg-button" type="submit">Confirm Verification code →</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form><button className="pg-button pg-outline" type="button" onClick={()=>setStep('form')}>Back to details</button></>}
-   {!loadingSaved&&step==='checking'&&<div aria-live="polite"><h3>Checking account details…</h3><div role="progressbar" aria-label="Demo linking progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{height:10,borderRadius:8,background:'#eee',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#c93333',transition:'width .4s'}}/></div><p>{progress}% · {progress<70?'Checking verification code…':progress<100?'Preparing preview card…':'Preview ready'}</p></div>}
+   {!loadingSaved&&step==='checking'&&<div aria-live="polite"><h3>Checking account details…</h3><div role="progressbar" aria-label="Account linking progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{height:10,borderRadius:8,background:'#eee',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#c93333',transition:'width .4s'}}/></div><p>{progress}% · {progress<70?'Checking verification code…':progress<100?'Preparing preview card…':'Preview ready'}</p></div>}
    {!loadingSaved&&step==='card'&&<><div style={{borderRadius:18,background:'#183d32',color:'#fff',padding:20,margin:'16px 0',minWidth:0,overflow:'hidden'}}>
      <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><strong style={{fontSize:19}}>NMB</strong><span className="pg-bank-connected"><span aria-hidden="true">●</span> CONNECTED</span></div>
      <p style={{fontSize:11,opacity:.8,marginTop:18}}>NMB Account Number</p>

@@ -1,5 +1,4 @@
 import {useCallback,useEffect,useState,type FormEvent} from 'react';
-import {Link} from 'react-router-dom';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
 type Loan={id:string;principal_tzs:number;interest_tzs:number;outstanding_tzs:number;due_at:string;created_at:string;penalty_accrued_tzs:number;penalty_days:number};
@@ -108,7 +107,6 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   setRepayAmount('');await load();window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <section className="pg-feature-card">
-  <Link className="pg-back" to="/dashboard">← Back to Home</Link>
   <h1>Personal Boost Loan</h1>
   {loading&&<p role="status">Loading loan records…</p>}
   {error&&<p className="pg-error" role="alert">{error}</p>}

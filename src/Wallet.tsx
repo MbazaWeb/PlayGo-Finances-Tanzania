@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 export type Source = { id: string; kind: 'mobile'|'bank'; provider: string; holder: string; number: string };
 export type Tx = { id: string; kind: string; amount: number; from: string; to: string; at: string; note: string };
@@ -64,7 +64,7 @@ type Intent={id:string;kind:'fee'|'transfer'|'topup'|'link-mobile'|'link-bank'|'
 const PENDING='playgo.demo.transaction.pending.v1';
 export function beginMerchantPayment(input:{merchantId:string;amount:number;reference:string},navigate:(path:string)=>void){begin({id:id(),kind:'merchant',amount:input.amount,merchantId:input.merchantId,reference:input.reference},navigate);}
 function begin(i:Intent,navigate:(path:string)=>void){sessionStorage.setItem('playgo.demo.transaction-otp',JSON.stringify({code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS}));sessionStorage.setItem(PENDING,JSON.stringify(i));navigate('/transaction-otp');}
-function Section({title,children}:{title:string;children:React.ReactNode}){return <><Link className="pg-back" to="/dashboard">← Back to Home</Link><h1>{title}</h1>{children}</>}
+function Section({title,children}:{title:string;children:React.ReactNode}){const location=useLocation();const fromServices=location.state?.from==='/services';return <><Link className="pg-back" to={fromServices?"/services":"/dashboard"}>{fromServices?"← Back to Services":"← Back to Home"}</Link><h1>{title}</h1>{children}</>}
 export function FeePage({account}:{account:string}){
  const navigate=useNavigate();const [amount,setAmount]=useState('');const [error,setError]=useState('');
  const {balance,transactions}=walletInfo(account);

@@ -393,6 +393,7 @@ function FeeInformation({session}:{session:Session}){
 }
 function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'quick-loan'|'transfer-bank'|'transaction-status'|'transaction-otp'|'history'}){
  const location=useLocation();
+ const historyFromServices=kind==='history'&&location.state?.from==='/services';
  const loanSubpage=kind==='quick-loan'&&new URLSearchParams(location.search).get('view')!==null&&new URLSearchParams(location.search).get('view')!=='overview';
  const [account,setAccount]=useState<string|null>(null);
  const [error,setError]=useState('');
@@ -403,7 +404,7 @@ function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'qu
  try{migrateLegacyDemoTopups(session.user.id,String(data.playgo_account));}catch{ /* Demo migration may be unavailable when browser storage is blocked. */ }
  setAccount(String(data.playgo_account));
  });return()=>{active=false;};},[session.user.id]);
- return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transfer-bank'?<BankTransferPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transaction-status'?<TransactionStatus account={account}/>:kind==='transaction-otp'?<TransactionOtp account={account} findAccount={()=>undefined}/>:kind==='history'?<><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Transaction History</h1><History account={account} supabase={supabase!} userId={session.user.id}/></>:<><Link to={loanSubpage?"/quick-loan":"/dashboard"} className="pg-back">{loanSubpage?"← Back to Quick Loan":"← Back to Home"}</Link><SecureQuickLoan supabase={supabase!} userId={session.user.id}/></>}</Frame>;
+ return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transfer-bank'?<BankTransferPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transaction-status'?<TransactionStatus account={account}/>:kind==='transaction-otp'?<TransactionOtp account={account} findAccount={()=>undefined}/>:kind==='history'?<><Link to={historyFromServices?"/services":"/dashboard"} className="pg-back">{historyFromServices?"← Back to Services":"← Back to Home"}</Link><h1>Transaction History</h1><History account={account} supabase={supabase!} userId={session.user.id}/></>:<><Link to={loanSubpage?"/quick-loan":"/dashboard"} className="pg-back">{loanSubpage?"← Back to Quick Loan":"← Back to Home"}</Link><SecureQuickLoan supabase={supabase!} userId={session.user.id}/></>}</Frame>;
 }
 export default function SecureApp() {
   const location=useLocation();

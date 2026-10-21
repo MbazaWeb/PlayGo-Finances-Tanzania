@@ -314,6 +314,8 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  <footer className="pg-demo-footer">Demo App</footer></section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+((tab===key || (key==='quick-loan'&&window.location.pathname==='/quick-loan'))?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
 }
 function FeeInformation({session}:{session:Session}){
+ const location=useLocation();
+ const fromServices=location.state?.from==='/services';
  type Approved={institutionId:string;courseId:string;institution:string;course:string};
  type FeePayment={id:string;amount_tzs:number;created_at:string;institution_id:string;course_id:string};
  const [approved,setApproved]=useState<Approved[]>([]);
@@ -376,7 +378,7 @@ function FeeInformation({session}:{session:Session}){
   setReceipt({id:txId,amount:review.amount,balance:Number(result.data),date:now});
   setReview(null);setChallenge(null);setOtp('');setAmount('');setMessage('Demo payment recorded successfully.');setRefresh(n=>n+1);window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
- return <Frame><Link to="/dashboard" className="pg-back">← Back to Home</Link><h1>Pay Tuition Fee</h1>
+ return <Frame><Link to={fromServices?"/services":"/dashboard"} className="pg-back">{fromServices?"← Back to Services":"← Back to Home"}</Link><h1>Pay Tuition Fee</h1>
  <p>Choose how much to pay. PlayGo tracks only payments made through this app, not your institution's official fee balance.</p>
  {message&&<p role="status">{message}</p>}
  <section className="pg-feature-card"><h2>PlayGo Wallet</h2><strong style={{fontSize:28}}>TZS {balance===null?'Loading…':balance.toLocaleString('en-TZ')}</strong><p>Available demo wallet balance</p></section>
@@ -393,7 +395,8 @@ function FeeInformation({session}:{session:Session}){
 }
 function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'quick-loan'|'transfer-bank'|'transaction-status'|'transaction-otp'|'history'}){
  const location=useLocation();
- const historyFromServices=kind==='history'&&location.state?.from==='/services';
+ const fromServices=location.state?.from==='/services';
+ const historyFromServices=kind==='history'&&fromServices;
  const loanSubpage=kind==='quick-loan'&&new URLSearchParams(location.search).get('view')!==null&&new URLSearchParams(location.search).get('view')!=='overview';
  const [account,setAccount]=useState<string|null>(null);
  const [error,setError]=useState('');
@@ -404,7 +407,7 @@ function WalletAccountRoute({session,kind}:{session:Session;kind:'add-money'|'qu
  try{migrateLegacyDemoTopups(session.user.id,String(data.playgo_account));}catch{ /* Demo migration may be unavailable when browser storage is blocked. */ }
  setAccount(String(data.playgo_account));
  });return()=>{active=false;};},[session.user.id]);
- return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transfer-bank'?<BankTransferPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transaction-status'?<TransactionStatus account={account}/>:kind==='transaction-otp'?<TransactionOtp account={account} findAccount={()=>undefined}/>:kind==='history'?<><Link to={historyFromServices?"/services":"/dashboard"} className="pg-back">{historyFromServices?"← Back to Services":"← Back to Home"}</Link><h1>Transaction History</h1><History account={account} supabase={supabase!} userId={session.user.id}/></>:<><Link to={loanSubpage?"/quick-loan":"/dashboard"} className="pg-back">{loanSubpage?"← Back to Quick Loan":"← Back to Home"}</Link><SecureQuickLoan supabase={supabase!} userId={session.user.id}/></>}</Frame>;
+ return <Frame>{error?<p className="pg-error" role="alert">{error}</p>:!account?<p>Loading your PlayGo wallet…</p>:kind==='add-money'?<AddMoneyPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transfer-bank'?<BankTransferPage account={account} supabase={supabase!} userId={session.user.id}/>:kind==='transaction-status'?<TransactionStatus account={account}/>:kind==='transaction-otp'?<TransactionOtp account={account} findAccount={()=>undefined}/>:kind==='history'?<><Link to={historyFromServices?"/services":"/dashboard"} className="pg-back">{historyFromServices?"← Back to Services":"← Back to Home"}</Link><h1>Transaction History</h1><History account={account} supabase={supabase!} userId={session.user.id}/></>:<><Link to={loanSubpage?"/quick-loan":fromServices?"/services":"/dashboard"} state={loanSubpage&&fromServices?{from:"/services"}:undefined} className="pg-back">{loanSubpage?"← Back to Quick Loan":fromServices?"← Back to Services":"← Back to Home"}</Link><SecureQuickLoan supabase={supabase!} userId={session.user.id}/></>}</Frame>;
 }
 export default function SecureApp() {
   const location=useLocation();

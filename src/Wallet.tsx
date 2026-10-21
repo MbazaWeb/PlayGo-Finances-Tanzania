@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 
 export type Source = { id: string; kind: 'mobile'|'bank'; provider: string; holder: string; number: string };
 export type Tx = { id: string; kind: string; amount: number; from: string; to: string; at: string; note: string };
@@ -55,11 +55,39 @@ export function WalletSummary({account,fullName,institution,supabase,userId}:{ac
  return <><div className="pg-account-card pg-unified-wallet-card"><div className="pg-unified-account"><small>PLAYGO ACCOUNT NUMBER</small><h2>{account}</h2><p>{fullName}</p><p>{institution}</p></div><div className="pg-unified-balance"><small>AVAILABLE BALANCE</small><h2>{balance===null?'Loading…':money(balance)}</h2></div><div className="pg-unified-loan"><small>LOAN OUTSTANDING</small><h3>{loanOutstanding===null?'Loading…':loanOutstanding>0?'- '+money(loanOutstanding):money(0)}</h3>{nextDue&&<small>REPAYMENT DUE · {new Date(nextDue).toLocaleDateString('en-GB')}</small>}</div></div>{error&&<p className="pg-error" role="alert">{error}</p>}<div className="pg-actions"><Link to="/pay-fee">🎓<span>Pay Fee</span></Link><Link to="/transfer-bank">⇄<span>Transfer</span></Link><Link to="/add-money">＋<span>Add Money</span></Link><Link to="/quick-loan">↘<span>Pay Loan</span></Link></div><div className="pg-feature-card"><strong>Tuition Payments</strong><p>Choose your fee amount and track payments made through PlayGo.</p><Link to="/pay-fee">Pay tuition fee →</Link></div><History account={account} short supabase={supabase} userId={userId}/></>;
 }
 export function History({account,short=false,supabase,userId}:{account:string;short?:boolean;supabase?:SupabaseClient;userId?:string}){
- const [rows,setRows]=useState<DemoRow[]>([]);const [error,setError]=useState('');
- useEffect(()=>{if(!supabase||!userId)return;let active=true;const refresh=()=>{void supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,fee_tzs,delta_tzs,note,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(100).then(({data,error:e})=>{if(!active)return;if(e)setError(e.message);else{setError('');setRows((data||[]) as DemoRow[]);}});};refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh);};},[supabase,userId]);
- if(supabase&&userId)return <div className="pg-feature-card"><strong>Recent Transactions & Loan Requests</strong>{error&&<p className="pg-error" role="alert">{error}</p>}{!rows.length&&!error&&<p>No transactions yet.</p>}{(short?rows.slice(0,4):rows).map(t=><div className="pg-tx" key={t.id}><div><b>{t.kind==='topup'?'Add Money':t.kind==='fee_payment'?'Course Fee':t.kind==='loan_repayment'?'Loan Repayment':t.kind==='loan_disbursement'?'Loan Credit':'Bank Transfer'}</b><small>{new Date(t.created_at).toLocaleString()} · {t.note} · Fee {money(t.fee_tzs)}</small></div><strong>{t.delta_tzs>0?'+':'−'}{money(Math.abs(t.delta_tzs))}</strong></div>)}{short&&rows.length>4&&<Link to="/history">View all →</Link>}</div>;
+ const [params]=useSearchParams();
+ const transactionId=short?null:params.get('transaction');
+ const [rows,setRows]=useState<DemoRow[]>([]);
+ const [detail,setDetail]=useState<DemoRow|null>(null);
+ const [loading,setLoading]=useState(false);
+ const [error,setError]=useState('');
+ useEffect(()=>{if(!supabase||!userId||transactionId)return;let active=true;const refresh=()=>{void supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,fee_tzs,delta_tzs,note,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(100).then(({data,error:e})=>{if(!active)return;if(e)setError(e.message);else{setError('');setRows((data||[]) as DemoRow[]);}});};refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh);};},[supabase,userId,transactionId]);
+ useEffect(()=>{if(!transactionId||!supabase||!userId){setDetail(null);return;}let active=true;setLoading(true);setError('');void supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,fee_tzs,delta_tzs,note,created_at').eq('user_id',userId).eq('id',transactionId).maybeSingle().then(({data,error:e})=>{if(!active)return;setLoading(false);if(e)setError(e.message);else setDetail(data as DemoRow|null);});return()=>{active=false};},[supabase,userId,transactionId]);
+ const title=(kind:string)=>({topup:'Wallet Top Up',fee_payment:'Tuition Fee Payment',loan_repayment:'Loan Repayment',loan_disbursement:'Loan Disbursement',bank_transfer:'Bank Transfer',merchant_payment:'Merchant Payment',tuition_payment:'Tuition Payment'} as Record<string,string>)[kind]||kind.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase());
+ if(supabase&&userId&&transactionId)return <section className="pg-feature-card pg-transaction-detail">
+  <Link className="pg-back" to="/history">← Back to Transaction History</Link>
+  <h1>Transaction Details</h1>
+  {loading?<p role="status">Loading transaction…</p>:error?<p className="pg-error" role="alert">{error}</p>:!detail?<p>Transaction not found or you do not have access to it.</p>:<>
+   <div className="pg-transaction-summary"><h2>{title(detail.kind)}</h2><strong style={{fontSize:30,color:Number(detail.delta_tzs)<0?'#151515':'#16815c'}}>{Number(detail.delta_tzs)>0?'+':'−'}{money(Math.abs(Number(detail.delta_tzs)))}</strong><p>Recorded</p></div>
+   <div className="pg-details">
+    <p><strong>Transaction ID</strong><span style={{overflowWrap:'anywhere'}}>{detail.id}</span></p>
+    <p><strong>Date & Time</strong><span>{new Date(detail.created_at).toLocaleString('en-GB')}</span></p>
+    <p><strong>Transaction Type</strong><span>{title(detail.kind)}</span></p>
+    <p><strong>Direction</strong><span>{Number(detail.delta_tzs)<0?'Debit':'Credit'}</span></p>
+    <p><strong>Amount</strong><span>{money(Number(detail.amount_tzs))}</span></p>
+    <p><strong>Transaction Fee</strong><span>{money(Number(detail.fee_tzs||0))}</span></p>
+    <p><strong>Wallet Change</strong><span>{money(Number(detail.delta_tzs))}</span></p>
+    <p><strong>PlayGo Account</strong><span>{account}</span></p>
+    {detail.note&&<p><strong>Transaction Notes</strong><span style={{overflowWrap:'anywhere'}}>{detail.note}</span></p>}
+   </div>
+   <p className="pg-note">This page displays recorded transaction data. External settlement status and historical balance are not independently verified here.</p>
+   <div className="pg-transaction-actions"><button type="button" className="pg-button" onClick={()=>window.print()}>Print / Save Receipt</button><Link className="pg-button pg-outline" to="/services?view=requests">Report an Issue</Link><Link className="pg-button pg-outline" to="/history">Done</Link></div>
+  </>}
+ </section>;
+ if(supabase&&userId)return <div className="pg-feature-card"><h2>Transaction History</h2>{error&&<p className="pg-error" role="alert">{error}</p>}{!rows.length&&!error&&<p>No transactions yet.</p>}{(short?rows.slice(0,4):rows).map(t=><Link className="pg-tx pg-transaction-link" to={'/history?transaction='+encodeURIComponent(t.id)} key={t.id}><div><b>{title(t.kind)}</b><small>{new Date(t.created_at).toLocaleString('en-GB')} · {t.note||'Wallet transaction'}</small></div><strong>{Number(t.delta_tzs)>0?'+':'−'}{money(Math.abs(Number(t.delta_tzs)))}</strong><span aria-hidden="true">›</span></Link>)}{short&&rows.length>4&&<Link to="/history">View all →</Link>}</div>;
  const tx=walletInfo(account).transactions;return <div className="pg-feature-card"><strong>Recent Transactions</strong>{!tx.length?<p>No transactions yet.</p>:(short?tx.slice(0,4):tx).map(t=><div className="pg-tx" key={t.id}><div><b>{t.kind}</b></div><strong>{money(t.amount)}</strong></div>)}</div>;
 }
+
 type Intent={id:string;kind:'fee'|'transfer'|'topup'|'link-mobile'|'link-bank'|'merchant';amount:number;recipient?:string;source?:Source;merchantId?:string;reference?:string};
 const PENDING='playgo.demo.transaction.pending.v1';
 export function beginMerchantPayment(input:{merchantId:string;amount:number;reference:string},navigate:(path:string)=>void){begin({id:id(),kind:'merchant',amount:input.amount,merchantId:input.merchantId,reference:input.reference},navigate);}

@@ -258,7 +258,7 @@ function NotificationCenter({session}:{session:Session}){
  {busy?<p>Loading notifications…</p>:error?<p role="alert" className="pg-error">{error}</p>:alerts.length===0?<div className="pg-feature-card"><h2>No alerts yet</h2><p>Your transactions and confirmed fee credits will appear here.</p></div>:<div className="pg-notify-list">{alerts.map(a=><article className="pg-notify-item" key={a.id}><div className="pg-notify-item-head"><div><strong>{a.title}</strong><small>{new Date(a.time).toLocaleString('en-GB')}</small></div><b className={a.amount<0?'pg-notify-debit':'pg-notify-credit'}>{a.amount<0?'-':'+'} TZS {Math.abs(a.amount).toLocaleString('en-TZ')}</b></div><p>{a.description}</p><small>Ref: {a.id}</small>{a.tx&&<div className="pg-notify-actions"><button type="button" onClick={()=>downloadTransactionReceipt(a.tx!,profile?.playgo_account||'',profile?.full_name||'Student')}>Download / Print PDF Receipt</button><button type="button" onClick={()=>void shareTransactionReceipt(a.tx!,profile?.playgo_account||'',profile?.full_name||'Student').then(()=>setNotice('Receipt shared or copied.')).catch(()=>setNotice('Unable to share receipt.'))}>Share Receipt</button></div>}</article>)}</div>}{notice&&<p role="status">{notice}</p>}</Frame>
 }
 
-type StudentTab = 'home'|'merchant'|'services'|'profile';
+type StudentTab = 'home'|'merchant'|'services'|'quick-loan'|'profile';
 function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const [profile,setProfile]=useState<Profile|null>(null);
  const [error,setError]=useState('');
@@ -287,7 +287,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const account=profile?.playgo_account||'';
  const institution=String(session.user.user_metadata?.institution_requested||'Institution pending verification');
  const admission=String(session.user.user_metadata?.admission_number_requested||'Pending verification');
- const tabs:[StudentTab,string,string,string][]=[['home','Home','⌂','/dashboard'],['merchant','Merchant','▣','/merchant'],['services','Services','▦','/services'],['profile','Profile','♙','/profile']];
+ const tabs:[StudentTab,string,string,string][]=[['home','Home','⌂','/dashboard'],['merchant','Merchant','▣','/merchant'],['services','Services','▦','/services'],['quick-loan','Quick Loan','◇','/quick-loan'],['profile','Profile','♙','/profile']];
  return <main className="pg-page pg-student-page"><section className="pg-panel">
  <img className="pg-logo pg-small" src={logo} alt="PlayGo Tanzania Limited"/><p className="pg-eyebrow">PLAYGO FINANCES · STUDENT WALLET</p>
  {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><div className="pg-feature-card"><strong>Personal Boost Loan</strong><p>Automatic partial repayments when due, late penalty and manual Pay Loan.</p><Link to="/quick-loan">Manage Loan / Pay Loan →</Link></div><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
@@ -311,7 +311,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  </div>}
  {error&&<p className="pg-error" role="alert">{error}</p>}
  
- <footer className="pg-demo-footer">Demo App</footer></section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+(tab===key?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
+ <footer className="pg-demo-footer">Demo App</footer></section><nav className="pg-bottom-nav" aria-label="Student navigation">{tabs.map(([key,title,icon,path])=><Link key={key} to={path} className={'pg-nav-item'+((tab===key || (key==='quick-loan'&&window.location.pathname==='/quick-loan'))?' pg-nav-active':'')} aria-current={tab===key?'page':undefined}><span className="pg-nav-icon" aria-hidden="true">{icon}</span><span>{title}</span></Link>)}</nav></main>;
 }
 function FeeInformation({session}:{session:Session}){
  type Approved={institutionId:string;courseId:string;institution:string;course:string};

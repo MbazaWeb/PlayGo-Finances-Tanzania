@@ -78,7 +78,7 @@ export function History({account,short=false,supabase,userId}:{account:string;sh
     <p><strong>Transaction Fee</strong><span>{money(Number(detail.fee_tzs||0))}</span></p>
     <p><strong>Wallet Change</strong><span>{money(Number(detail.delta_tzs))}</span></p>
     <p><strong>PlayGo Account</strong><span>{account}</span></p>
-    {detail.note&&<p><strong>Transaction Notes</strong><span style={{overflowWrap:'anywhere'}}>{detail.note}</span></p>}
+    {detail.note?.replace(/SIMULATED ONLY\s*[·:—-]?\s*/gi,'').trim()&&<p><strong>Transaction Notes</strong><span style={{overflowWrap:'anywhere'}}>{detail.note.replace(/SIMULATED ONLY\s*[·:—-]?\s*/gi,'').trim()}</span></p>}
    </div>
    <p className="pg-note">This page displays recorded transaction data. External settlement status and historical balance are not independently verified here.</p>
    <div className="pg-transaction-actions"><button type="button" className="pg-button" onClick={()=>window.print()}>Print / Save Receipt</button><Link className="pg-button pg-outline" to="/services?view=requests">Report an Issue</Link><Link className="pg-button pg-outline" to="/history">Done</Link></div>

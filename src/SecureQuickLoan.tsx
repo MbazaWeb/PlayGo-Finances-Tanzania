@@ -113,7 +113,6 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   {loading&&<p role="status">Loading loan records…</p>}
   {error&&<p className="pg-error" role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}
-  {view!=='overview'&&<Link to="/quick-loan" className="pg-back">← Back to Quick Loan</Link>}
   {view==='overview'&&<>
   <h1>Personal Boost Loan</h1>
   <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>

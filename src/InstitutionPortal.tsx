@@ -5,7 +5,6 @@ import type {Session,SupabaseClient} from '@supabase/supabase-js';
 import './admin.css';
 
 type Institution={id:string;name:string;code:string|null;email:string|null;phone:string|null;address:string|null;region:string|null;website:string|null;contact_person:string|null;admin_username:string|null};
-type Section='dashboard'|'requests'|'students'|'courses'|'payments'|'heslb'|'inquiries'|'profile';
 function isInstitutionAdmin(session:Session|null){return session?.user.app_metadata?.playgo_role==='institution_admin'&&typeof session.user.app_metadata?.institution_id==='string';}
 
 export function InstitutionLogin({supabase,session}:{supabase:SupabaseClient;session:Session|null}){

@@ -36,7 +36,7 @@ export function HomeLoanStatus({account}:{account:string}){
  {active?<div aria-live="polite"><p><strong>Loan check in progress</strong> · {active.id}</p><p>Requested: {money(active.amount)} · {active.termDays} days</p><p>{stage}</p><p><strong>Time remaining: {String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong> · {progress}%</p><div className="pg-progress" role="progressbar" aria-label="Loan check progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{width:progress+'%'}}/></div></div>:<p>{ordered.length?'Latest loan request status: '+ordered[0].status:'Wallet running low? Request emergency student funding.'}</p>}
  <Link className="pg-button" to={active?'/quick-loan?request='+encodeURIComponent(active.id):'/quick-loan'}>{active?'View Loan Check →':'⚡ Request Personal Boost →'}</Link>
  <h3>Loan Request History</h3>{ordered.length===0?<p className="pg-note">No loan requests yet.</p>:ordered.slice(0,4).map(x=><div className="pg-tx" key={x.id}><div><Link to={'/quick-loan?request='+encodeURIComponent(x.id)}><b>{x.id}</b></Link><small>{new Date(x.createdAt).toLocaleString('en-TZ')} · {x.termDays===1?'24 hours':x.termDays+' days'}</small><small>{x.status}</small></div><strong>{money(x.amount)}</strong></div>)}
- {ordered.length>4&&<Link to="/quick-loan">View all loan requests →</Link>}
+ {ordered.length>4&&<Link to="/quick-loan" state={{from:"/services"}}>View all loan requests →</Link>}
  </div>;
 }
 export function QuickLoan({account}:{account:string}){
@@ -68,10 +68,10 @@ export function QuickLoan({account}:{account:string}){
  const formatTZS=(value:number)=>'TZS '+value.toLocaleString('en-TZ',{minimumFractionDigits:value%1?2:0,maximumFractionDigits:2});
 
  return <section className="pg-feature-card" aria-label="Selected loan status"><Link className="pg-back" to="/dashboard">← Back to Home</Link><h2>Loan Status</h2>
- {!selected?<><p className="pg-error">This loan request was not found for your account.</p><Link to="/quick-loan">View loan requests →</Link></>:<>
+ {!selected?<><p className="pg-error">This loan request was not found for your account.</p><Link to="/quick-loan" state={{from:"/services"}}>View loan requests →</Link></>:<>
  <div className="pg-details"><p><strong>Reference</strong><span>{selected.id}</span></p><p><strong>Amount requested</strong><span>TZS {selected.amount.toLocaleString('en-TZ')}</span></p><p><strong>Application date</strong><span>{new Date(selected.createdAt).toLocaleString('en-TZ')}</span></p><p><strong>Repayment term</strong><span>{selected.termDays===1?'24 hours':selected.termDays+' days'}</span></p><p><strong>Interest</strong><span>{selected.interestRate??0}%</span></p><p><strong>Repayment due date</strong><span>{new Date(dueAt).toLocaleString('en-TZ')}</span></p><p><strong>Original repayment</strong><span>{formatTZS(baseRepayment)}</span></p><p><strong>Late penalty rate</strong><span>0.5% per overdue day (simple)</span></p><p><strong>Daily penalty</strong><span>{formatTZS(dailyPenalty)}</span></p><p><strong>Days overdue</strong><span>{overdueDays}</span></p><p><strong>Accrued penalty</strong><span>{formatTZS(accruedPenalty)}</span></p><p><strong>Total repayment due</strong><span><b>{formatTZS(amountDue)}</b></span></p><p><strong>Status</strong><span>{overdueDays>0?'Overdue':selected.status}</span></p></div>
  {selected.status==='Checking'&&<div aria-live="polite"><h3>Loan Check</h3><p>{stage}</p><p><strong>Time remaining: {String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong> · {progress}%</p><div className="pg-progress" role="progressbar" aria-label="Loan check progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><div style={{width:progress+'%'}}/></div></div>}
- <p className="pg-note">Penalty begins only after the due date passes and continues to accrue for each started overdue day until repayment is recorded. Calculated at 0.5% per overdue day on original repayment, without compounding. </p><Link to="/quick-loan">All Loan Requests →</Link></>}
+ <p className="pg-note">Penalty begins only after the due date passes and continues to accrue for each started overdue day until repayment is recorded. Calculated at 0.5% per overdue day on original repayment, without compounding. </p><Link to="/quick-loan" state={{from:"/services"}}>All Loan Requests →</Link></>}
  </section>;
  }
  return <section className="pg-feature-card" id="quick-loan">
@@ -155,12 +155,12 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
     <p>Manage your student payments and financial records in one place.</p>
     
     <div className="pg-services-grid">
-      <Link className="pg-service-tile" to="/pay-fee"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Tuition Fees</strong><small>Enter amount and pay fees</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/pay-fee" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Tuition Fees</strong><small>Enter amount and pay fees</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/history" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">◷</span><strong>Transactions</strong><small>Payment history</small><span className="pg-service-arrow">›</span></Link>
-      <Link className="pg-service-tile" to="/add-money"><span className="pg-service-symbol" aria-hidden="true">＋</span><strong>Add Money</strong><small>Fund your wallet</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/add-money" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">＋</span><strong>Add Money</strong><small>Fund your wallet</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/profile"><span className="pg-service-symbol" aria-hidden="true">▣</span><strong>Linked Accounts</strong><small>NMB Bank only</small><span className="pg-service-arrow">›</span></Link>
       <Link className="pg-service-tile" to="/government-loan"><span className="pg-service-symbol" aria-hidden="true">▤</span><strong>Government Loan</strong><small>HESLB allocation status</small><span className="pg-service-arrow">›</span></Link>
-      <Link className="pg-service-tile" to="/quick-loan"><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
+      <Link className="pg-service-tile" to="/quick-loan" state={{from:"/services"}}><span className="pg-service-symbol" aria-hidden="true">⚡</span><strong>Personal Boost Loan</strong><small>Short-term emergency borrowing</small><span className="pg-service-arrow">›</span></Link>
     </div>
     <section className="pg-feature-card pg-service-fee">
       <div className="pg-services-heading"><h2>Fee Payment Progress</h2></div>
@@ -173,7 +173,7 @@ export function ServicesPage({ account, institution, userId, supabase }: { accou
        </div>
        <div className="pg-fee-recent"><strong>Recent Fee Payments</strong>{feePayments.slice(0,4).map(p=><div key={p.id} className="pg-tx"><span>{new Date(p.created_at).toLocaleDateString('en-GB')}</span><b>{money(p.amount_tzs)}</b></div>)}{!feePayments.length&&<p>No tuition payments recorded yet.</p>}</div>
       </>}
-      <Link className="pg-button" to="/pay-fee">Pay Tuition Fee →</Link>
+      <Link className="pg-button" to="/pay-fee" state={{from:"/services"}}>Pay Tuition Fee →</Link>
     </section>
     <section className="pg-feature-card pg-statement-card">
      <div className="pg-services-heading"><h2>Account Statement</h2><span>PDF</span></div>

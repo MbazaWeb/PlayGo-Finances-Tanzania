@@ -10,3 +10,9 @@ backup-*/
 *.backup-*
 *.log
 .DS_Store
+
+.vercel
+.env*
+
+playgo-audit-report.json
+!/.env.example

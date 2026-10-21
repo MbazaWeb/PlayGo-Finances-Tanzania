@@ -150,7 +150,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
    </details>
   </section>}
   </>}
-  :{view==='request'&&<>
+  {view==='request'&&<>
   <h1>Request Loan</h1>
   {!active.length&&!loading&&<>
    <form className="pg-form" onSubmit={request}>
@@ -161,17 +161,17 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
     <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
   </>}
-  :{view==='credit'&&<>
+  {view==='credit'&&<>
   <h1>Credit Score</h1>
   <CreditScoreDashboard credit={credit} events={creditEvents} loading={loading}/>
   </>}
-  :{view==='loans'&&<>
+  {view==='loans'&&<>
   <h1>Loan History</h1>
   
   {!loans.length&&!loading&&<p>No loans recorded yet.</p>}
   {loans.map(l=><div key={l.id} className="pg-tx"><div><strong>{l.id}</strong><small> · Due {fmt(l.due_at)}</small></div><span>{Number(l.outstanding_tzs)===0?'Paid in full':money(effectiveOutstanding(l))+' remaining'}</span></div>)}
   </>}
-  :{view==='repayments'&&<>
+  {view==='repayments'&&<>
   <h1>Repayment History</h1>
   
   {!repayments.length&&!loading&&<p>No repayments recorded yet.</p>}

@@ -117,13 +117,12 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   {view==='overview'&&<>
   <h1>Personal Boost Loan</h1>
   <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
-  <div style={{display:'grid',gap:12,marginTop:24}}>
-  {current?<Link className="pg-feature-card" to="/quick-loan?view=active"><strong>Active Loan →</strong><p>View balance, due date and repayment options</p></Link>:<Link className="pg-feature-card" to="/quick-loan?view=request"><strong>Request Loan →</strong><p>Check your borrowing limit and request a loan</p></Link>}
-  <Link className="pg-feature-card" to="/quick-loan?view=credit"><strong>Credit Score & Eligibility →</strong><p>Points, activity and borrowing tier</p></Link>
-  <Link className="pg-feature-card" to="/quick-loan?view=loans"><strong>Loan History →</strong><p>View previous and active loans</p></Link>
-  <Link className="pg-feature-card" to="/quick-loan?view=repayments"><strong>Repayment History →</strong><p>Review completed repayments</p></Link>
-  </div>
-  </>}
+  <nav aria-label="Quick Loan sections" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:12,marginTop:24}}>
+   <Link to={current?'/quick-loan?view=active':'/quick-loan?view=request'} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>{current?'Active Loan':'Request Loan'}</span><span aria-hidden="true">→</span></Link>
+   <Link to="/quick-loan?view=credit" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Credit Score</span><span aria-hidden="true">→</span></Link>
+   <Link to="/quick-loan?view=loans" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Loan History</span><span aria-hidden="true">→</span></Link>
+   <Link to="/quick-loan?view=repayments" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Repayment History</span><span aria-hidden="true">→</span></Link>
+  </nav>  </>}
   {view==='active'&&<>
   <h1>Loan Details & Repayment</h1>
   {current&&<section aria-label="Active loan details">

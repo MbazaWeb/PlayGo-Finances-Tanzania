@@ -211,25 +211,6 @@ function Dashboard({ session }: { session: Session }) {
   }, [session.user.id]);
   return <Frame><h1>Hello, {profile?.full_name || 'Student'}!</h1><p>Signed in as {session.user.email}</p><div className="pg-details"><p><strong>PlayGo Account</strong><span>{profile?.playgo_account || 'Pending provisioning'}</span></p><p><strong>Banking</strong><span>Not connected</span></p></div><h2>My institutions</h2>{enrollments.length ? enrollments.map(e=><p key={e.id}>{institutions.find(i=>i.id===e.institution_id)?.name || 'Institution'} · {e.admission_number} · {e.active ? 'Active' : 'Inactive'}</p>) : <p>No verified institution enrollment yet. Contact your institution administrator.</p>}<h2>Published fee schedules</h2>{years.length ? years.map(y=><div key={y.id}><strong>{institutions.find(i=>i.id===y.institution_id)?.name} — {y.label}</strong>{installments.filter(t=>t.academic_year_id===y.id).map(t=><p key={t.id}>Installment {t.installment_number}: TZS {Number(t.amount_tzs).toLocaleString()} · Due {t.due_date}</p>)}</div>) : <p>No published schedules available.</p>}{error && <p className="pg-error" role="alert">{error}</p>}<button className="pg-button pg-outline" onClick={()=>void supabase?.auth.signOut()}>Log out</button></Frame>;
 }
-function StudentFinancialOverview({userId,studyYear}:{userId:string;studyYear:string}){
- const [payments,setPayments]=useState<{id:string;amount_tzs:number;created_at:string}[]>([]);
- const [message,setMessage]=useState('Loading fee payments…');
- useEffect(()=>{let mounted=true;async function load(){
-  if(!supabase)return;
-  const result=await supabase.from('pg_demo_fee_payments').select('id,amount_tzs,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(1000);
-  if(!mounted)return;
-  if(result.error)setMessage('Unable to load payments: '+result.error.message);else{setPayments(result.data||[]);setMessage('');}
- }void load();window.addEventListener('playgo:wallet-updated',load);return()=>{mounted=false;window.removeEventListener('playgo:wallet-updated',load);};},[userId]);
- const total=payments.reduce((n,p)=>n+Number(p.amount_tzs),0);
- return <section className="pg-student-fee-overview"><h2>PlayGo Fee Payments</h2>
- <p>Study Year {studyYear} · Payments recorded through PlayGo</p>
- <div className="pg-fee-grid"><p>Total Paid<b>TZS {total.toLocaleString('en-TZ')}</b></p><p>Transactions<b>{payments.length}</b></p></div>
- {message&&<p role="status">{message}</p>}
- <h3>Recent Tuition Payments</h3>{payments.slice(0,4).map(p=><div key={p.id} className="pg-tx"><span>{new Date(p.created_at).toLocaleDateString('en-GB')}</span><strong>TZS {Number(p.amount_tzs).toLocaleString('en-TZ')}</strong></div>)}
- {!payments.length&&!message&&<p>No tuition payments recorded yet.</p>}
- <Link className="pg-button" to="/pay-fee">Pay Tuition Fee →</Link>
- </section>;
-}
 
 type AlertTransaction={id:string;kind:string;amount_tzs:number;delta_tzs:number;note:string|null;created_at:string};
 const receiptSafe=(value:string)=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
@@ -290,7 +271,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  const tabs:[StudentTab,string,string,string][]=[['home','Home','⌂','/dashboard'],['merchant','Merchant','▣','/merchant'],['services','Services','▦','/services'],['quick-loan','Quick Loan','◇','/quick-loan']];
  return <main className="pg-page pg-student-page"><section className="pg-panel">
  <img className="pg-logo pg-small" src={logo} alt="PlayGo Tanzania Limited"/><p className="pg-eyebrow">PLAYGO FINANCES · STUDENT WALLET</p>
- {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/><div className="pg-feature-card"><strong>Personal Boost Loan</strong><p>Automatic partial repayments when due, late penalty and manual Pay Loan.</p><Link to="/quick-loan">Manage Loan / Pay Loan →</Link></div><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></>:<p>Loading your PlayGo account…</p>}</>}
+ {tab==='home'&&<><h1>Hello, {(profile?.full_name||'Student').split(' ')[0]}!</h1><p>Welcome to your student wallet.</p>{account?<><WalletSummary account={account} fullName={profile?.full_name||'Student'} institution={institution} supabase={supabase!} userId={session.user.id}/></>:<p>Loading your PlayGo account…</p>}</>}
  {tab==='merchant'&&(account?<MerchantPage account={account} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
  {tab==='services'&&(account?<ServicesPage account={account} institution={institution} userId={session.user.id} supabase={supabase!}/>:<p>Loading account…</p>)}
  {tab==='profile'&&<div className="pg-profile-redesign">
@@ -305,7 +286,7 @@ function StudentWallet({session,tab}:{session:Session;tab:StudentTab}) {
  {courseApprovalStatus!=='approved'&&editingCourse&&<div className="pg-form"><label htmlFor="pg-course">Course</label><select id="pg-course" value={course} onChange={e=>setCourse(e.target.value)}><option value="">Select course</option><option value="Diploma in Business Administration (DBA)">Diploma in Business Administration (DBA)</option></select><label htmlFor="pg-study-year">Year of study</label><select id="pg-study-year" value={studyYear} onChange={e=>setStudyYear(e.target.value)}><option value="1">Year 1</option><option value="2">Year 2</option></select><button type="button" className="pg-button" disabled={savingCourse||!course} onClick={()=>void saveCourse()}>{savingCourse?'Saving…':'Save course'}</button>{savedCourse&&<button type="button" className="pg-button pg-outline" onClick={()=>setEditingCourse(false)}>Cancel</button>}</div>}
  {courseMessage&&<p role="status">{courseMessage}</p>}
  </section>
- <section className="pg-profile-card pg-profile-finances"><div className="pg-profile-card-heading"><h2>Fees & HESLB</h2><Link className="pg-profile-inline-link" to="/pay-fee">Pay fee →</Link></div><StudentFinancialOverview userId={session.user.id} studyYear={savedStudyYear}/></section>
+ <section className="pg-profile-card pg-profile-finances"><div className="pg-profile-card-heading"><h2>Fees & HESLB</h2><Link className="pg-profile-inline-link" to="/pay-fee">Pay fee →</Link></div><p>Manage tuition payments and progress in Pay Tuition Fee.</p></section>
  {account&&<section className="pg-profile-card"><h2>Linked Bank Accounts</h2><LinkedAccounts account={account} supabase={supabase ?? undefined} userId={session.user.id}/></section>}
  <button className="pg-button pg-outline pg-profile-logout" onClick={async()=>{await supabase?.auth.signOut();navigate('/login',{replace:true})}}>Log out</button>
  </div>}

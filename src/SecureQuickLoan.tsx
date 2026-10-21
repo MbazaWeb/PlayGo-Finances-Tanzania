@@ -41,7 +41,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const base=Number(borrow);
  const days=Number(term);
  const rate=days===1?2:days===3?2.5:days===7?3:days===14?4:5;
- const valid=Number.isSafeInteger(base)&&base>=5000&&base<=500000;
+ const valid=Number.isSafeInteger(base)&&base>=5000&&base<=20000;
  const interest=valid?Math.round(base*rate/100):0;
  async function request(e:FormEvent<HTMLFormElement>){
   e.preventDefault();if(!valid||busy||active.length)return;
@@ -49,29 +49,28 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   const res=await supabase.rpc('pg_issue_demo_quick_loan',{p_id:crypto.randomUUID(),p_amount:base,p_term_days:days});
   setBusy(false);
   if(res.error){setError(res.error.message);return;}
-  setNotice('Demo loan '+res.data+' approved and credited to your PlayGo demo wallet. This is not a real disbursement.');
+  setNotice('Loan '+res.data+' approved and credited to your PlayGo wallet. This is not a real disbursement.');
   setBorrow('');await load();window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  async function pay(e:FormEvent<HTMLFormElement>){
   e.preventDefault();if(!current||busy)return;
   const n=Number(repayAmount);
   if(!Number.isSafeInteger(n)||n<1||n>5000000){setError('Enter a valid whole-number repayment amount.');return;}
-  if(balance===null||balance<=0){setError('Insufficient demo wallet balance.');return;}
+  if(balance===null||balance<=0){setError('Insufficient wallet balance.');return;}
   setBusy(true);setError('');setNotice('');
   const res=await supabase.rpc('pg_repay_demo_loan',{p_loan_id:current.id,p_amount:n,p_id:crypto.randomUUID()});
   setBusy(false);
   if(res.error){setError(res.error.message);return;}
-  setNotice('Manual demo repayment recorded: '+money(Number(res.data))+'.');
+  setNotice('Manual repayment recorded: '+money(Number(res.data))+'.');
   setRepayAmount('');await load();window.dispatchEvent(new Event('playgo:wallet-updated'));
  }
  return <section className="pg-feature-card">
   <Link className="pg-back" to="/dashboard">← Back to Home</Link>
   <h1>Personal Boost Loan</h1>
-  <p>Demo loans only. Repay manually at any time or automatically on the due date. If the wallet has less than the amount due, the system deducts the available balance and keeps the remainder outstanding. A simple 0.5% daily late penalty applies to unpaid loans after the due date.</p>
   {loading&&<p role="status">Loading loan records…</p>}
   {error&&<p className="pg-error" role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}
-  <div className="pg-details"><p><strong>Available demo wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
+  <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
   {current&&<><h2>Repay Loan</h2>
    <label htmlFor="repay-select">Loan</label>
    <select id="repay-select" value={current.id} onChange={e=>setSelected(e.target.value)}>{active.map(l=><option key={l.id} value={l.id}>{l.id}</option>)}</select>
@@ -89,15 +88,15 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
     <button className="pg-button" type="button" onClick={()=>setRepayAmount(String(Math.min(total,balance??0)))} disabled={!balance||busy}>Pay Available / Full</button>
     <button className="pg-button" type="submit" disabled={busy||!repayAmount}>{busy?'Processing…':'Pay Loan Manually'}</button>
    </form></>}
-  {!active.length&&!loading&&<><h2>Request Demo Loan</h2>
+  {!active.length&&!loading&&<><h2>Request Loan</h2>
    <form className="pg-form" onSubmit={request}>
-    <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max="500000" step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder="5000 – 500000"/>
+    <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max="20000" step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder="5,000 – 20,000"/>
     <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours · 2%</option><option value="3">3 days · 2.5%</option><option value="7">7 days · 3%</option><option value="14">14 days · 4%</option><option value="30">30 days · 5%</option></select>
-    <p>Demo repayment: {valid?money(base+interest):'Enter amount'} (including {rate}% interest). Approval is simulated and immediate.</p>
-    <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Demo Loan'}</button>
+    <p>Repayment: {valid?money(base+interest):'Enter amount'} (including {rate}% interest). Loan approval is subject to eligibility.</p>
+    <button className="pg-button" type="submit" disabled={busy||!valid}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
   <h2>Loan History</h2>
-  {!loans.length&&!loading&&<p>No demo loans recorded yet.</p>}
+  {!loans.length&&!loading&&<p>No loans recorded yet.</p>}
   {loans.map(l=><div key={l.id} className="pg-tx"><div><strong>{l.id}</strong><small> · Due {fmt(l.due_at)}</small></div><span>{Number(l.outstanding_tzs)===0?'Paid in full':money(effectiveOutstanding(l))+' remaining'}</span></div>)}
   <h2>Repayment History</h2>
   {!repayments.length&&!loading&&<p>No repayments recorded yet.</p>}

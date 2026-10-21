@@ -112,23 +112,29 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   {error&&<p className="pg-error" role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}
   <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
-  {current&&<><h2>Repay Loan</h2>
-   <label htmlFor="repay-select">Loan</label>
-   <select id="repay-select" value={current.id} onChange={e=>setSelected(e.target.value)}>{active.map(l=><option key={l.id} value={l.id}>{l.id}</option>)}</select>
+  {current&&<section aria-label="Active loan details">
+   <h2>Active Loan</h2>
+   {active.length>1&&<><label htmlFor="repay-select">Select loan</label><select id="repay-select" value={current.id} onChange={e=>setSelected(e.target.value)}>{active.map(l=><option key={l.id} value={l.id}>{l.id}</option>)}</select></>}
    <div className="pg-details">
+    <p><strong>Loan reference</strong><span>{current.id}</span></p>
     <p><strong>Principal</strong><span>{money(Number(current.principal_tzs))}</span></p>
     <p><strong>Interest</strong><span>{money(Number(current.interest_tzs))}</span></p>
     <p><strong>Due date</strong><span>{fmt(current.due_at)}</span></p>
     <p><strong>Accrued late penalty</strong><span>{money(Number(current.penalty_accrued_tzs)+Math.max(0,total-Number(current.outstanding_tzs)))}</span></p>
-    <p><strong>Current outstanding (including penalty)</strong><span>{money(total)}</span></p>
-    <p><strong>Status</strong><span>{Date.now()>new Date(current.due_at).getTime()?'Overdue — auto collection active':'Not due yet'}</span></p>
+    <p><strong>Outstanding balance</strong><span>{money(total)}</span></p>
+    <p><strong>Status</strong><span>{Date.now()>new Date(current.due_at).getTime()?'Overdue — automatic collection active':'Active — not due yet'}</span></p>
    </div>
-   <form className="pg-form" onSubmit={pay}>
-    <label htmlFor="repay-amount">Manual repayment amount (TZS)</label>
-    <input id="repay-amount" type="number" min="1" max="5000000" step="1" required value={repayAmount} onChange={e=>setRepayAmount(e.target.value)} placeholder="Enter amount to repay"/>
-    <button className="pg-button" type="button" onClick={()=>setRepayAmount(String(Math.min(total,balance??0)))} disabled={!balance||busy}>Pay Available / Full</button>
-    <button className="pg-button" type="submit" disabled={busy||!repayAmount}>{busy?'Processing…':'Pay Loan Manually'}</button>
-   </form></>}
+   <p className="pg-note">{Date.now()>new Date(current.due_at).getTime()?'Outstanding amounts may be collected automatically when funds become available.':'Automatic repayment is scheduled for the due date. Early repayment is optional.'}</p>
+   <details style={{marginTop:18,border:'1px solid #e5e7eb',borderRadius:14,padding:'14px 16px'}}>
+    <summary style={{cursor:'pointer',fontWeight:700}}>Make an early or additional repayment (optional)</summary>
+    <form className="pg-form" onSubmit={pay} style={{marginTop:16}}>
+     <label htmlFor="repay-amount">Repayment amount (TZS)</label>
+     <input id="repay-amount" type="number" min="1" max={Math.max(1,Math.floor(total))} step="1" required value={repayAmount} onChange={e=>setRepayAmount(e.target.value)} placeholder="Amount in TZS"/>
+     <p className="pg-note">Available wallet: {balance===null?'Loading…':money(balance)}. Maximum outstanding: {money(total)}.</p>
+     <button className="pg-button" type="submit" disabled={busy||!repayAmount||balance===null||balance<=0}>{busy?'Processing…':'Confirm Repayment'}</button>
+    </form>
+   </details>
+  </section>}
   {!active.length&&!loading&&<><h2>Request Loan</h2>
    <form className="pg-form" onSubmit={request}>
     <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`5,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>

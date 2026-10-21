@@ -53,6 +53,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const view=searchParams.get('view')||'overview';
  const [loans,setLoans]=useState<Loan[]>([]);
  const [credit,setCredit]=useState<CreditEligibility|null>(null);
+ const [borrowStatus,setBorrowStatus]=useState<{status:string;can_borrow:boolean;eligible_transactions:number;required_transactions:number;reason:string}|null>(null);
  const [creditEvents,setCreditEvents]=useState<CreditEvent[]>([]);
  const [repayments,setRepayments]=useState<Repayment[]>([]);
  const [balance,setBalance]=useState<number|null>(null);
@@ -67,17 +68,19 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const [quoteLoading,setQuoteLoading]=useState(false);
  const [selected,setSelected]=useState('');
  const load=useCallback(async()=>{
-  const [l,r,w,eligibility,events]=await Promise.all([
+  const [l,r,w,eligibility,events,borrowState]=await Promise.all([
    supabase.from('pg_quick_loan_balances').select('id,principal_tzs,interest_tzs,outstanding_tzs,due_at,created_at,penalty_accrued_tzs,penalty_days').eq('user_id',userId).order('created_at',{ascending:false}),
    supabase.from('pg_loan_repayments').select('id,loan_id,amount_tzs,method,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(100),
    supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle(),
    supabase.rpc('pg_credit_eligibility'),
-   supabase.from('pg_credit_score_events').select('event_type,event_key,points').eq('user_id',userId).order('created_at',{ascending:false}).limit(10000)
+   supabase.from('pg_credit_score_events').select('event_type,event_key,points').eq('user_id',userId).order('created_at',{ascending:false}).limit(10000),
+   supabase.rpc('pg_borrow_status')
   ]);
   if(l.error||r.error||w.error)setError(l.error?.message||r.error?.message||w.error?.message||'Unable to load loans');
   else{setError('');setLoans((l.data||[]) as Loan[]);setRepayments((r.data||[]) as Repayment[]);setBalance(Number(w.data?.balance_tzs||0));}
   if(!eligibility.error&&eligibility.data){const value=Array.isArray(eligibility.data)?eligibility.data[0]:eligibility.data;setCredit(value as CreditEligibility);}
   if(!events.error)setCreditEvents((events.data||[]) as CreditEvent[]);
+  setBorrowStatus(!borrowState.error&&borrowState.data?(Array.isArray(borrowState.data)?borrowState.data[0]:borrowState.data):null);
   setLoading(false);
  },[supabase,userId]);
  useEffect(()=>{void load();window.addEventListener('playgo:wallet-updated',load);return()=>window.removeEventListener('playgo:wallet-updated',load);},[load]);
@@ -90,7 +93,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
  const valid=Number.isSafeInteger(base)&&base>=5000&&base<=maxLoan;
  useEffect(()=>{if(!valid){setLoanQuote(null);setQuoteLoading(false);return;}let active=true;setLoanQuote(null);setQuoteLoading(true);void supabase.rpc('pg_financial_quote',{p_kind:'loan',p_amount:base,p_term_days:days}).then(({data,error})=>{if(!active)return;setLoanQuote(!error&&Array.isArray(data)?data[0]:null);setQuoteLoading(false);});return()=>{active=false};},[supabase,base,days,valid]);
  async function request(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();if(!valid||busy||active.length||!loanQuote||quoteLoading)return;
+  e.preventDefault();if(!valid||busy||active.length||!loanQuote||quoteLoading||!borrowStatus?.can_borrow)return;
   setBusy(true);setNotice('');setError('');
   const res=await supabase.rpc('pg_issue_demo_quick_loan',{p_id:crypto.randomUUID(),p_amount:base,p_term_days:days});
   setBusy(false);
@@ -117,7 +120,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   {notice&&<p role="status">{notice}</p>}
   {view==='overview'&&<>
   <h1>Personal Boost Loan</h1>
-  <div className="pg-details"><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
+  <div className="pg-details"><p><strong>Borrowing Status</strong><span>{borrowStatus?.can_borrow?'Active':borrowStatus?borrowStatus.status==='reactivation_required'?`Inactive · ${borrowStatus.eligible_transactions}/${borrowStatus.required_transactions} transactions`:borrowStatus.status==='defaulted'?'Inactive · Overdue':'Inactive · Active loan':'Checking…'}</span></p><p><strong>Available Wallet</strong><span>{balance===null?'Loading…':money(balance)}</span></p><p><strong>Active loan balance</strong><span>{money(active.reduce((sum,l)=>sum+effectiveOutstanding(l),0))}</span></p></div>
   <nav aria-label="Quick Loan sections" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:12,marginTop:24}}>
    <Link to={current?'/quick-loan?view=active':'/quick-loan?view=request'} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>{current?'Active Loan':'Request Loan'}</span></Link>
    <Link to="/quick-loan?view=credit" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minHeight:82,padding:16,border:'1px solid #e5e7eb',borderRadius:16,textDecoration:'none',color:'inherit',fontWeight:700,background:'#fff',boxShadow:'0 3px 12px #00000008'}}><span>Credit Score</span></Link>
@@ -153,14 +156,15 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
   </>}
   {view==='request'&&<>
   <h1>Request Loan</h1>
-  {!active.length&&!loading&&<>
+  {!loading&&borrowStatus&&!borrowStatus.can_borrow&&<div className="pg-feature-card" role="status" aria-live="polite"><strong>Borrowing Inactive · {borrowStatus.status==='defaulted'?'Overdue Loan':borrowStatus.status==='reactivation_required'?'Reactivation Required':'Active Loan'}</strong><p>{borrowStatus.reason}</p>{borrowStatus.required_transactions>0&&<p>Eligible transactions: {borrowStatus.eligible_transactions} / {borrowStatus.required_transactions}</p>}{active.length>0&&<Link to="/quick-loan?view=active">View / Repay Loan →</Link>}</div>}
+  {!active.length&&!loading&&borrowStatus?.can_borrow&&<>
    <form className="pg-form" onSubmit={request}>
     <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`5,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>
     <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select>
 
 
     {valid&&<div className="pg-details" aria-live="polite">{quoteLoading?<p>Calculating loan charges…</p>:loanQuote?<><p><strong>Loan amount</strong><span>{money(base)}</span></p><p><strong>Interest amount</strong><span>{money(Number(loanQuote.interest_tzs))}</span></p><p><strong>Total repayment</strong><span>{money(Number(loanQuote.total_repayment_tzs))}</span></p></>:<p>Unable to calculate loan charges. Try again.</p>}</div>}
-    <button className="pg-button" type="submit" disabled={busy||!valid||quoteLoading||!loanQuote}>{busy?'Processing…':'Request Loan'}</button>
+    <button className="pg-button" type="submit" disabled={busy||!valid||quoteLoading||!loanQuote||!borrowStatus?.can_borrow}>{busy?'Processing…':'Request Loan'}</button>
    </form></>}
   </>}
   {view==='credit'&&<>

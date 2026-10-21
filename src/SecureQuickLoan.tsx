@@ -133,7 +133,7 @@ export function SecureQuickLoan({supabase,userId}:{supabase:SupabaseClient;userI
    </form></>}
   {!active.length&&!loading&&<><h2>Request Loan</h2>
    <form className="pg-form" onSubmit={request}>
-    <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?\`5,000 – \${maxLoan.toLocaleString("en-TZ")}\`:"Loading loan limit…"}/>
+    <label htmlFor="loan-amount">Amount (TZS)</label><input id="loan-amount" type="number" min="5000" max={maxLoan} step="1000" required value={borrow} onChange={e=>setBorrow(e.target.value)} placeholder={credit?`5,000 – ${maxLoan.toLocaleString("en-TZ")}`:"Loading loan limit…"}/>
     <label htmlFor="loan-term">Repayment term</label><select id="loan-term" value={term} onChange={e=>setTerm(e.target.value)}><option value="1">24 hours · 2%</option><option value="3">3 days · 2.5%</option><option value="7">7 days · 3%</option><option value="14">14 days · 4%</option><option value="30">30 days · 5%</option></select>
 
 

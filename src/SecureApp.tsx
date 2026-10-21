@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { createClient, type Session } from '@supabase/supabase-js';
 import './styles.css';
 import AdminPortal from './AdminPortal';

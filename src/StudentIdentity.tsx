@@ -25,10 +25,15 @@ export function StudentIdentity({userId,supabase}:{userId:string;supabase:Supaba
   try{
    let path=form.passport_photo_path;
    if(photo){path=`${userId}/passport.${photo.type==='image/png'?'png':photo.type==='image/webp'?'webp':'jpg'}`;const uploaded=await supabase.storage.from('pg-student-identity').upload(path,photo,{upsert:true,contentType:photo.type,cacheControl:'60'});if(uploaded.error)throw uploaded.error}
-   const {error:saveError}=await supabase.from('pg_student_identity').upsert({user_id:userId,mobile_number:mobile,nida_number:form.nida_number.trim(),inec_number:form.inec_number.trim(),nhif_number:form.nhif_number.trim(),birth_certificate_number:form.birth_certificate_number.trim(),passport_photo_path:path},{onConflict:'user_id'});
-   if(saveError)throw saveError;
-   setForm(v=>({...v,mobile_number:mobile,passport_photo_path:path}));setPhoto(null);setApproval('pending');setEditing(false);setNotice(sw?'Taarifa zimehifadhiwa.':'Details saved successfully.');
-  }catch{setError(sw?'Imeshindikana kuhifadhi. Hakikisha database na storage zimeandaliwa.':'Could not save. Check that the database and storage are configured.')}finally{setSaving(false)}
+   const payload={mobile_number:mobile,nida_number:form.nida_number.trim(),inec_number:form.inec_number.trim(),nhif_number:form.nhif_number.trim(),birth_certificate_number:form.birth_certificate_number.trim(),passport_photo_path:path};
+   const {data:existing,error:lookupError}=await supabase.from('pg_student_identity').select('user_id').eq('user_id',userId).maybeSingle();
+   if(lookupError)throw lookupError;
+   const result=existing
+    ? await supabase.from('pg_student_identity').update(payload).eq('user_id',userId).select('verification_status').single()
+    : await supabase.from('pg_student_identity').insert({user_id:userId,...payload}).select('verification_status').single();
+   if(result.error)throw result.error;
+   setForm(v=>({...v,mobile_number:mobile,passport_photo_path:path}));setPhoto(null);setApproval(result.data?.verification_status??'pending');setEditing(false);setNotice(sw?'Taarifa zimehifadhiwa.':'Details saved successfully.');
+  }catch(err){console.error('Student identity save failed',err);setError((sw?'Imeshindikana kuhifadhi: ':'Could not save: ')+(err instanceof Error?err.message:String(err)))}finally{setSaving(false)}
  }
  return <section className="pg-profile-card pg-identity-card"><div className="pg-identity-heading"><h2>{sw?'Utambulisho na Mawasiliano':'Identification & Contact Details'}</h2><button type="button" className="pg-identity-edit" aria-label={sw?'Hariri taarifa':'Edit details'} title={sw?'Hariri taarifa':'Edit details'} onClick={()=>{setEditing(v=>!v);setError('');setNotice('')}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="m16 4 4 4-12 12H4v-4L16 4Z"/><path d="m14 6 4 4"/></svg> {editing?(sw?'Ghairi':'Cancel'):(sw?'Hariri':'Edit')}</button></div><p className="pg-identity-status">{approval==='approved'?'✓ '+(sw?'Mabadiliko yameidhinishwa na chuo':'Changes approved by institution'):approval==='pending'?(sw?'Inasubiri uthibitisho wa chuo':'Pending institution review'):approval==='rejected'?(sw?'Mabadiliko yamekataliwa; hariri tena':'Changes rejected; edit again'):(sw?'Bado haijathibitishwa':'Not verified')}</p><p className="pg-identity-help">{sw?'Taarifa hizi ni za faragha. Usijaze PIN au nenosiri.':'These details are private. Never enter PINs or passwords.'}</p>
  {loading?<p role="status">{sw?'Inapakia…':'Loading…'}</p>:<form className="pg-identity-form" onSubmit={e=>void save(e)}>

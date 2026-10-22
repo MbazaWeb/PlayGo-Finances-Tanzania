@@ -3,19 +3,20 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { walletInfo, creditApprovedDemoLoan } from './Wallet';
+import { usePreferences } from './Preferences';
 
 const options = ['Fee payment inquiry','Transaction inquiry','Account assistance','Other student finance inquiry'];
 export function GovernmentStudentLoan(){
+ const {language}=usePreferences();
+ const sw=language==='sw';
  return <section className="pg-feature-card" id="government-loan">
- <div className="pg-services-heading"><h2>Government Student Loan</h2><span>HESLB · Status only</span></div>
- 
+ <div className="pg-services-heading"><h2>{sw?'Mkopo wa Serikali kwa Wanafunzi':'Government Student Loan'}</h2><span>{sw?'HESLB · Taarifa ya hali pekee':'HESLB · Status only'}</span></div>
  <div className="pg-details">
- <p><strong>Government provider</strong><span>HESLB</span></p>
- <p><strong>Allocation status</strong><span>Not connected · Unknown</span></p>
- <p><strong>Allocated amount</strong><span>Not available</span></p>
- <p><strong>Disbursement status</strong><span>Not available</span></p>
+ <p><strong>{sw?'Mtoa mkopo wa serikali':'Government provider'}</strong><span>HESLB</span></p>
+ <p><strong>{sw?'Hali ya mgao':'Allocation status'}</strong><span>{sw?'Haijaunganishwa · Haijulikani':'Not connected · Unknown'}</span></p>
+ <p><strong>{sw?'Kiasi kilichotengwa':'Allocated amount'}</strong><span>{sw?'Hakuna taarifa':'Not available'}</span></p>
+ <p><strong>{sw?'Hali ya utoaji wa fedha':'Disbursement status'}</strong><span>{sw?'Hakuna taarifa':'Not available'}</span></p>
  </div>
- 
  </section>;
 }
 type QuickLoanRequest={id:string;account:string;amount:number;termDays:number;reason:string;interestRate?:number;interestAmount?:number;totalRepayment?:number;createdAt:string;status:'Not approved'|'Checking'|'Approved'};

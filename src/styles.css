@@ -224,3 +224,192 @@ body:has(.pg-bottom-nav) .pg-demo-footer{margin-bottom:8px}
 .pg-tuition-receipt-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
 @media(max-width:480px){.pg-tuition-receipt-details p{flex-direction:column;gap:6px}.pg-tuition-receipt-details p strong{flex:auto}.pg-tuition-receipt-details p span{text-align:left}.pg-tuition-receipt-actions>*{width:100%;text-align:center}}
 @media print{.pg-tuition-receipt{border:0;box-shadow:none}.pg-tuition-receipt-actions{display:none}}
+
+:root{--pg-surface:#fff;--pg-text:#171717;--pg-border:#e5e8ee}
+:root[data-theme='dark']{--pg-surface:#20242c;--pg-text:#f1f3f6;--pg-border:#414753;color-scheme:dark;background:#10141b;color:#f1f3f6}
+:root[data-theme='dark'] body,:root[data-theme='dark'] .pg-page,:root[data-theme='dark'] .pg-center{background:#10141b;color:#f1f3f6}
+:root[data-theme='dark'] :is(.pg-profile-card,.pg-feature-card,.pg-balance,.pg-service-tile,.pg-merchant-option,.pg-notify-item,.pg-bottom-nav,.pg-statement-filters,.pg-fee-review-verify,.pg-fee-review-code,.pg-form input,.pg-form select,.pg-merchant-search){background:#20242c!important;color:#f1f3f6!important;border-color:#414753!important}
+:root[data-theme='dark'] :is(.pg-panel,.pg-panel h1,.pg-profile-fields strong,.pg-actions span,.pg-fee-grid b,.pg-service-tile strong,.pg-profile-card h2){color:#f1f3f6}
+:root[data-theme='dark'] :is(.pg-welcome p,.pg-panel>p,.pg-profile-fields span,.pg-service-tile small,.pg-tx small,.pg-source small,.pg-fee-review-details span){color:#b6bfcb}
+:root[data-theme='dark'] :is(.pg-actions,.pg-nav-active,.pg-reminder,.pg-service-reminder,.pg-otp-hint,.pg-merchant-demo,.pg-services-notice){background:#35242a!important;color:#ffb9bf!important}
+:root[data-theme='dark'] :is(.pg-details p,.pg-tx,.pg-source,.pg-fee-review-details>div){border-color:#414753}
+:root[data-theme='dark'] input,:root[data-theme='dark'] select,:root[data-theme='dark'] textarea{color-scheme:dark}
+
+
+/* Phase 6.1: compact appearance/language menu aligned with profile and notifications */
+.pg-preferences{position:fixed;top:16px;right:max(134px,calc((100vw - 980px)/2 + 116px));z-index:1100;color:var(--pg-text,#171717)}
+.pg-preferences:not(.pg-preferences-compact){right:18px}
+.pg-preferences-trigger{display:flex;align-items:center;justify-content:center;width:45px;height:45px;padding:0;border:1px solid var(--pg-border,#e5e7eb);border-radius:50%;background:var(--pg-surface,#fff);color:#e51a2b;box-shadow:0 4px 18px #00000012;cursor:pointer;transition:transform .15s,background .15s}
+.pg-preferences-trigger:hover{transform:translateY(-1px);background:var(--pg-hover,#fff0f2)}
+.pg-preferences-trigger:focus-visible,.pg-preferences-menu button:focus-visible{outline:2px solid #e51a2b;outline-offset:3px}
+.pg-preferences-menu{position:absolute;right:0;top:calc(100% + 10px);width:min(290px,calc(100vw - 24px));padding:16px;border:1px solid var(--pg-border,#e5e7eb);border-radius:16px;background:var(--pg-surface,#fff);color:var(--pg-text,#171717);box-shadow:0 16px 45px #00000030}
+.pg-preferences-title{display:block;font-size:14px;margin-bottom:16px}
+.pg-preferences-section{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:13px}
+.pg-preferences-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.pg-preferences-options{display:flex;gap:4px;padding:4px;border:1px solid var(--pg-border,#e5e7eb);border-radius:10px;background:var(--pg-menu-soft,#f3f4f6)}
+.pg-preferences-options button{border:0;border-radius:7px;min-width:36px;min-height:32px;padding:5px 7px;background:transparent;color:var(--pg-text,#171717);font-weight:700;font-size:13px;cursor:pointer}
+.pg-preferences-options button.selected{background:#e51a2b;color:#fff;box-shadow:0 2px 8px #00000018}
+:root[data-theme='dark']{--pg-menu-soft:#303642;--pg-hover:#35313a}
+:root[data-theme='dark'] :is(.pg-global-profile,.pg-global-bell){background:var(--pg-surface);border-color:var(--pg-border);color:#ff6474}
+@media(max-width:600px){.pg-preferences{top:12px;right:122px}.pg-preferences:not(.pg-preferences-compact){right:12px}.pg-preferences-trigger{width:42px;height:42px}}
+
+/* Phase 6.2: coherent accessible dark surfaces, including wallet action tiles. */
+:root[data-theme='dark'] {
+ --pg-bg:#0e1219;--pg-card:#1d2531;--pg-raised:#263141;
+ --pg-fg:#f5f7fa;--pg-muted:#bac5d4;--pg-stroke:#3c495a;
+ --pg-surface:var(--pg-card);--pg-text:var(--pg-fg);--pg-border:var(--pg-stroke);
+ color-scheme:dark;
+}
+:root[data-theme='dark'] body,
+:root[data-theme='dark'] .pg-page,
+:root[data-theme='dark'] .pg-center {background:var(--pg-bg)!important;color:var(--pg-fg)!important}
+:root[data-theme='dark'] :is(.pg-panel,.pg-account-card,.pg-feature-card,.pg-profile-card,.pg-service-tile,.pg-fee-hub-tile,.pg-merchant-option,.pg-tuition-receipt,.pg-notify-item,.pg-bottom-nav,.pg-fee-trend-track,.pg-tx,.pg-source,.pg-statement-card,.pg-receipt-card,.pg-services-card,.pg-bank-card,.pg-form,.pg-merchant-card,.pg-fee-review-card){border-color:var(--pg-stroke)!important}
+:root[data-theme='dark'] :is(.pg-panel,.pg-feature-card,.pg-profile-card,.pg-service-tile,.pg-fee-hub-tile,.pg-merchant-option,.pg-tuition-receipt,.pg-notify-item,.pg-statement-card,.pg-receipt-card,.pg-services-card,.pg-bank-card,.pg-merchant-card,.pg-fee-review-card){background:var(--pg-card)!important;color:var(--pg-fg)!important}
+/* The old .pg-actions parent and child colors caused almost invisible labels. */
+:root[data-theme='dark'] .pg-actions {background:transparent!important; color:var(--pg-fg)!important}
+:root[data-theme='dark'] .pg-actions a,
+:root[data-theme='dark'] .pg-actions button {background:var(--pg-raised)!important;color:#ff6675!important;border:1px solid var(--pg-stroke)!important;text-decoration:none}
+:root[data-theme='dark'] .pg-actions a span,
+:root[data-theme='dark'] .pg-actions button span {color:var(--pg-fg)!important;opacity:1!important;font-weight:700!important}
+:root[data-theme='dark'] .pg-actions a:hover,
+:root[data-theme='dark'] .pg-actions a:focus-visible {background:#344357!important;border-color:#ff6675!important}
+:root[data-theme='dark'] :is(.pg-account-card,.pg-unified-wallet-card){background:#191e27!important;color:var(--pg-fg)!important}
+:root[data-theme='dark'] :is(.pg-account-card small,.pg-unified-account small,.pg-unified-balance small,.pg-unified-loan small){color:#d0d8e4!important}
+:root[data-theme='dark'] :is(.pg-account-card h2,.pg-unified-account h2,.pg-unified-balance h2){color:#fff!important}
+:root[data-theme='dark'] :is(.pg-fee-grid b,.pg-feature-card h2,.pg-profile-card h2,.pg-fee-hub-tile strong,.pg-tuition-receipt-amount strong,.pg-tuition-receipt-details p span,.pg-tuition-receipt-brand){color:var(--pg-fg)!important}
+:root[data-theme='dark'] :is(.pg-tuition-receipt-details p strong,.pg-tuition-receipt-amount small,.pg-tuition-receipt-label,.pg-tuition-receipt-note,.pg-panel p,.pg-panel label){color:var(--pg-muted)}
+:root[data-theme='dark'] :is(input,select,textarea){background:var(--pg-raised)!important;color:var(--pg-fg)!important;border-color:var(--pg-stroke)!important}
+:root[data-theme='dark'] :is(input,textarea)::placeholder{color:#aebacb!important;opacity:1}
+:root[data-theme='dark'] :is(.pg-tuition-receipt-note,.pg-reminder,.pg-service-reminder,.pg-otp-hint,.pg-services-notice){background:var(--pg-raised)!important;color:var(--pg-fg)!important}
+:root[data-theme='dark'] :is(.pg-button,.pg-outline){border-color:var(--pg-stroke)}
+:root[data-theme='dark'] .pg-button:not(.pg-outline){color:#fff}
+:root[data-theme='dark'] :is(.pg-global-bell,.pg-global-profile,.pg-preferences-trigger){background:var(--pg-card)!important;border-color:var(--pg-stroke)!important}
+:root[data-theme='dark'] .pg-preferences-menu{background:var(--pg-card)!important;border-color:var(--pg-stroke)!important;color:var(--pg-fg)!important}
+:root[data-theme='dark'] .pg-fee-trend-track{background:var(--pg-raised)!important}
+:root[data-theme='dark'] .pg-tuition-receipt-status{background:#143b30!important;color:#b0f4d1!important}
+
+/* Phase 6.4 — one shared viewport column for student content, controls and nav.
+   Scoped to signed-in student pages; admin/institution layouts remain untouched. */
+:root { --pg-student-shell: 750px; --pg-student-gutter: 16px; }
+body:has(.pg-bottom-nav) .pg-page {
+  width: 100%;
+  padding: 104px var(--pg-student-gutter) calc(118px + env(safe-area-inset-bottom));
+  margin: 0;
+  display: flex;
+  justify-content: center;
+}
+body:has(.pg-bottom-nav) .pg-page > .pg-panel {
+  width: min(100%, var(--pg-student-shell));
+  max-width: var(--pg-student-shell);
+  min-width: 0;
+  margin: 0 auto;
+  padding: 0 0 40px;
+}
+body:has(.pg-bottom-nav) .pg-page > .pg-panel > :is(.pg-account-card,.pg-feature-card,.pg-unified-wallet-card,.pg-profile-redesign,.pg-actions) {
+  max-width: 100%;
+}
+body:has(.pg-bottom-nav) .pg-bottom-nav {
+  width: min(calc(100% - 2 * var(--pg-student-gutter)), var(--pg-student-shell));
+  max-width: var(--pg-student-shell);
+  left: 50%; right: auto; transform: translateX(-50%);
+  box-sizing: border-box;
+}
+/* Place all three header actions within the same column as the bottom nav. */
+body:has(.pg-bottom-nav) :is(.pg-preferences,.pg-global-profile,.pg-global-bell) {
+  top: 24px;
+  width: 44px;
+  height: 44px;
+}
+body:has(.pg-bottom-nav) .pg-global-bell {
+  right: max(var(--pg-student-gutter), calc((100vw - var(--pg-student-shell)) / 2));
+}
+body:has(.pg-bottom-nav) .pg-global-profile {
+  right: max(calc(var(--pg-student-gutter) + 56px), calc((100vw - var(--pg-student-shell)) / 2 + 56px));
+}
+body:has(.pg-bottom-nav) .pg-preferences,
+body:has(.pg-bottom-nav) .pg-preferences.pg-preferences-compact {
+  right: max(calc(var(--pg-student-gutter) + 112px), calc((100vw - var(--pg-student-shell)) / 2 + 112px));
+}
+body:has(.pg-bottom-nav) .pg-preferences-trigger {width:44px;height:44px}
+@media(max-width:600px) {
+  body:has(.pg-bottom-nav) .pg-page {padding-top:88px}
+  body:has(.pg-bottom-nav) :is(.pg-preferences,.pg-global-profile,.pg-global-bell) {top:16px;width:40px;height:40px}
+  body:has(.pg-bottom-nav) .pg-preferences-trigger {width:40px;height:40px}
+  body:has(.pg-bottom-nav) .pg-global-profile {right:calc(var(--pg-student-gutter) + 50px)}
+  body:has(.pg-bottom-nav) .pg-preferences,
+  body:has(.pg-bottom-nav) .pg-preferences.pg-preferences-compact {right:calc(var(--pg-student-gutter) + 100px)}
+}
+
+/* Phase 6.5 — single white theme; language selection remains available. */
+:root,:root[data-theme='light']{color-scheme:light!important;--pg-bg:#ffffff;--pg-surface:#ffffff;--pg-card:#ffffff;--pg-raised:#f6f7f9;--pg-fg:#171b23;--pg-text:#171b23;--pg-muted:#667085;--pg-border:#e5e7eb;--pg-stroke:#e5e7eb;--pg-menu-soft:#f3f4f6;--pg-hover:#fff1f2}
+html,body,#root{background:#fff!important;color:#171b23}
+.pg-page,.pg-panel,.pg-student-page,.pg-center,.pg-welcome{background:#fff!important;color:#171b23!important}
+.pg-unified-wallet-card,.pg-account-card,.pg-merchant-balance,.pg-fee-review-amount{background:#171717!important;color:#fff!important}
+.pg-bottom-nav,.pg-profile-card,.pg-feature-card,.pg-balance,.pg-service-tile,.pg-merchant-option,.pg-preferences-menu,.pg-preferences-trigger{background:#fff!important;color:#171b23!important;border-color:#e5e7eb!important}
+.pg-actions{background:transparent!important}
+.pg-actions a{background:#fff1f2!important;color:#d51925!important}
+.pg-actions a span{color:#171b23!important}
+.pg-nav-item{color:#626b77!important}
+.pg-nav-active{color:#d7192c!important;background:#fff1f2!important}
+.pg-preferences-options{background:#f3f4f6!important}
+.pg-preferences-options button{color:#171b23!important}
+.pg-preferences-options button.selected{color:#fff!important}
+input,select,textarea{color-scheme:light}
+
+/* Phase 6.6 — Four compact wallet shortcuts in a single row. */
+.pg-actions {
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:10px!important;
+  margin:16px 0 20px!important;
+  width:100%;
+  min-width:0;
+}
+.pg-actions > a {
+  min-width:0;
+  min-height:92px;
+  padding:13px 6px!important;
+  border-radius:14px!important;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px!important;
+  font-size:24px!important;
+  line-height:1.15;
+  text-align:center;
+  box-sizing:border-box;
+}
+.pg-actions > a span {
+  display:block;
+  font-size:12px!important;
+  line-height:1.3;
+  overflow-wrap:anywhere;
+}
+@media(max-width:520px){
+ .pg-actions{gap:6px!important}
+ .pg-actions > a{min-height:78px;padding:10px 3px!important;font-size:21px!important;border-radius:11px!important;gap:6px!important}
+ .pg-actions > a span{font-size:10px!important}
+}
+
+/* Transaction history: stable description / amount / chevron columns. */
+.pg-transaction-link{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(135px,190px) 18px;column-gap:16px;align-items:center;width:100%;box-sizing:border-box}
+.pg-transaction-link>div:first-child{min-width:0;overflow-wrap:anywhere}
+.pg-transaction-link>strong{display:block;min-width:0;width:100%;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-feature-settings:'tnum';font-size:inherit}
+.pg-transaction-link>span:last-child{text-align:right}
+@media(max-width:520px){.pg-transaction-link{grid-template-columns:minmax(0,1fr) minmax(108px,135px) 12px;column-gap:7px}.pg-transaction-link>strong{font-size:12px}.pg-transaction-link small{overflow-wrap:anywhere}}
+/* Wallet available balance visibility control */
+.pg-balance-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pg-balance-visibility{display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;border:1px solid #e5e7eb;border-radius:50%;background:#fff;color:#db1830;cursor:pointer}
+.pg-balance-visibility:hover{background:#fff1f2}
+.pg-balance-visibility:focus-visible{outline:2px solid #db1830;outline-offset:3px}
+.pg-identity-card{margin-block:24px}.pg-identity-help{color:#64748b;font-size:14px}.pg-identity-form{display:grid;gap:18px}.pg-identity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pg-identity-form label{display:grid;gap:7px;font-weight:600}.pg-identity-form input[type=text]{width:100%;box-sizing:border-box;min-width:0;padding:12px 14px;border:1px solid #d9dfe7;border-radius:10px;background:#fff;color:#172033;font:inherit}.pg-identity-form input:focus-visible{outline:2px solid #e51a2b;outline-offset:1px}.pg-identity-upload{max-width:360px}.pg-identity-upload small{font-weight:400;color:#64748b}@media(max-width:640px){.pg-identity-grid{grid-template-columns:1fr}}
+
+.pg-identity-card{margin-block:24px}.pg-identity-help{color:#64748b;font-size:14px}.pg-identity-form{display:grid;gap:18px}.pg-identity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pg-identity-form label{display:grid;gap:7px;font-weight:600}.pg-identity-form input[type=text]{width:100%;box-sizing:border-box;min-width:0;padding:12px 14px;border:1px solid #d9dfe7;border-radius:10px;background:#fff;color:#172033;font:inherit}.pg-identity-form input:focus-visible{outline:2px solid #e51a2b;outline-offset:1px}.pg-identity-upload{max-width:360px}.pg-identity-upload small{font-weight:400;color:#64748b}@media(max-width:640px){.pg-identity-grid{grid-template-columns:1fr}}
+
+.pg-identity-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pg-identity-edit{display:inline-flex;align-items:center;gap:7px;background:#fff;color:#e51a2b;border:1px solid #e5e7eb;border-radius:10px;padding:9px 13px;font-weight:700;cursor:pointer}
+.pg-identity-edit:hover{background:#fff2f3}
+.pg-identity-status{font-size:13px;font-weight:700;color:#475569}
+.pg-identity-form input:disabled{background:#f8fafc;color:#334155;opacity:1;cursor:default}
+

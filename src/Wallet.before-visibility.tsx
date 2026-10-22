@@ -1,0 +1,250 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+
+export type Source = { id: string; kind: 'mobile'|'bank'; provider: string; holder: string; number: string };
+export type Tx = { id: string; kind: string; amount: number; from: string; to: string; at: string; note: string };
+type Fee = { total: number; paid: number; due: string };
+type Store = { balances: Record<string,number>; fees: Record<string,Fee>; sources: Record<string,Source[]>; transactions: Tx[]; processed: string[] };
+const KEY='playgo.demo.wallet.v1';
+const DEFAULT_FEE=2000000;
+const load=():Store=>{try {const x=JSON.parse(localStorage.getItem(KEY)||'null'); if(x && x.balances && x.fees && x.sources && Array.isArray(x.transactions) && Array.isArray(x.processed)) return x;}catch{} return {balances:{},fees:{},sources:{},transactions:[],processed:[]};};
+const save=(s:Store)=>localStorage.setItem(KEY,JSON.stringify(s));
+const money=(n:number)=>'TZS '+n.toLocaleString('en-TZ');
+const mask=(s:string)=>s.length>4?'•••• '+s.slice(-4):'••••';
+const amountOf=(v:string)=>{const n=Number(v);return Number.isSafeInteger(n)&&n>0&&n<=100000000? n:0;};
+const id=()=>crypto.randomUUID();
+const transactionFee=(amount:number)=>Math.ceil(amount*0.01);
+export const generateDemoOtp=()=>String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,'0');
+export const DEMO_OTP_LIFETIME_MS=45000;
+export function DemoOtpTimer({expires}:{expires:number}){const [seconds,setSeconds]=useState(()=>Math.max(0,Math.ceil((expires-Date.now())/1000)));useEffect(()=>{const update=()=>setSeconds(Math.max(0,Math.ceil((expires-Date.now())/1000)));update();const timer=window.setInterval(update,250);return()=>window.clearInterval(timer);},[expires]);return <p className="pg-otp-hint" role="timer" aria-live="off">{seconds>0?`OTP expires in 00:${String(seconds).padStart(2,'0')}`:'OTP expired — request a new code.'}</p>;}
+
+export function migrateLegacyDemoTopups(userId:string,playgoAccount:string){
+ if(!userId||!playgoAccount||userId===playgoAccount)return;
+ const store=load();
+ const legacy=store.transactions.filter(t=>t.to===userId&&t.kind==='Add Money · Demo'&&t.note.includes('SIMULATED ONLY'));
+ if(!legacy.length)return;
+ const migrationKey='playgo.demo.topup-migrated.'+userId;
+ if(localStorage.getItem(migrationKey)==='1')return;
+ const amount=legacy.reduce((total,t)=>total+t.amount,0);
+ if(!Number.isSafeInteger(amount)||amount<=0)return;
+ const current=store.balances[playgoAccount]||0;
+ if(!Number.isSafeInteger(current+amount))return;
+ store.balances[playgoAccount]=current+amount;
+ store.balances[userId]=Math.max(0,(store.balances[userId]||0)-amount);
+ legacy.forEach(t=>{t.to=playgoAccount;});
+ save(store);
+ localStorage.setItem(migrationKey,'1');
+}
+export function walletInfo(account:string){const s=load();const fee=s.fees[account]||{total:DEFAULT_FEE,paid:0,due:''};return {balance:s.balances[account]||0,fee,transactions:s.transactions.filter(t=>t.from===account||t.to===account).slice().reverse(),sources:s.sources[account]||[]};}
+export function demoLoanOutstanding(account:string):number{try{const loans=JSON.parse(localStorage.getItem('playgo.demo.quick-loan.v1')||'[]') as {account:string;id:string;status:string;totalRepayment?:number;amount:number}[];const s=load();return loans.filter(x=>x.account===account&&/approved/i.test(x.status)&&s.processed.includes('loan-credit:'+x.id)).reduce((sum,x)=>sum+(x.totalRepayment||x.amount),0);}catch{return 0;}}
+export function creditApprovedDemoLoan(account:string,loan:{id:string;amount:number}):boolean{
+ if(!Number.isSafeInteger(loan.amount)||loan.amount<=0)return false;
+ const s=load();const key='loan-credit:'+loan.id;
+ if(s.processed.includes(key))return false;
+ const balance=s.balances[account]||0;if(!Number.isSafeInteger(balance+loan.amount))return false;
+ s.balances[account]=balance+loan.amount;s.processed.push(key);
+ s.transactions.push({id:key,kind:'Personal Boost Loan Credit',amount:loan.amount,from:'PlayGo loan account',to:account,at:new Date().toISOString(),note:'Loan principal credited to PlayGo wallet; repayment liability tracked separately. No external funds disbursed.'});
+ save(s);window.dispatchEvent(new Event('playgo:wallet-updated'));return true;
+}
+type DemoRow={id:string;kind:string;amount_tzs:number;fee_tzs:number;delta_tzs:number;note:string;created_at:string};
+export function WalletSummary({account,fullName,institution,supabase,userId}:{account:string;fullName:string;institution:string;supabase:SupabaseClient;userId:string}){
+ const [balance,setBalance]=useState<number|null>(null);const [error,setError]=useState('');const [loanOutstanding,setLoanOutstanding]=useState<number|null>(null);const [nextDue,setNextDue]=useState<string|null>(null);
+ useEffect(()=>{let active=true;const refresh=()=>{void supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle().then(({data,error:e})=>{if(!active)return;if(e)setError(e.message);else{setError('');setBalance(Number(data?.balance_tzs||0));}});};refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh);};},[supabase,userId]);
+ useEffect(()=>{let active=true;const refresh=async()=>{const result=await supabase.from('pg_quick_loan_balances').select('id,principal_tzs,interest_tzs,outstanding_tzs,due_at,penalty_days').eq('user_id',userId).gt('outstanding_tzs',0);if(!active)return;if(result.error){setError(result.error.message);return;}const server=result.data||[];const amount=server.reduce((n,x)=>{const overdue=Math.max(0,Math.ceil((Date.now()-new Date(x.due_at).getTime())/86400000));const extra=Math.max(0,overdue-Number(x.penalty_days||0))*Math.ceil((Number(x.principal_tzs)+Number(x.interest_tzs))*0.005);return n+Number(x.outstanding_tzs)+extra;},0);setLoanOutstanding(amount);setNextDue(server.map(x=>x.due_at).sort()[0]||null);};void refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh)}},[supabase,userId]);
+ return <><div className="pg-account-card pg-unified-wallet-card"><div className="pg-unified-account"><small>PLAYGO ACCOUNT NUMBER</small><h2>{account}</h2><p>{fullName}</p><p>{institution}</p></div><div className="pg-unified-balance"><small>AVAILABLE BALANCE</small><h2>{balance===null?'Loading…':money(balance)}</h2></div><div className="pg-unified-loan"><small>LOAN OUTSTANDING</small><h3>{loanOutstanding===null?'Loading…':loanOutstanding>0?'- '+money(loanOutstanding):money(0)}</h3>{nextDue&&<small>REPAYMENT DUE · {new Date(nextDue).toLocaleDateString('en-GB')}</small>}</div></div>{error&&<p className="pg-error" role="alert">{error}</p>}<div className="pg-actions"><Link to="/pay-fee">🎓<span>Pay Fee</span></Link><Link to="/transfer-bank">⇄<span>Transfer</span></Link><Link to="/add-money">＋<span>Add Money</span></Link><Link to="/quick-loan">↘<span>Pay Loan</span></Link></div><History account={account} short supabase={supabase} userId={userId}/></>;
+}
+export function History({account,short=false,supabase,userId}:{account:string;short?:boolean;supabase?:SupabaseClient;userId?:string}){
+ const [params]=useSearchParams();
+ const transactionId=short?null:params.get('transaction');
+ const [rows,setRows]=useState<DemoRow[]>([]);
+ const [detail,setDetail]=useState<DemoRow|null>(null);
+ const [loading,setLoading]=useState(false);
+ const [error,setError]=useState('');
+ useEffect(()=>{if(!supabase||!userId||transactionId)return;let active=true;const refresh=()=>{void supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,fee_tzs,delta_tzs,note,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(100).then(({data,error:e})=>{if(!active)return;if(e)setError(e.message);else{setError('');setRows((data||[]) as DemoRow[]);}});};refresh();window.addEventListener('playgo:wallet-updated',refresh);return()=>{active=false;window.removeEventListener('playgo:wallet-updated',refresh);};},[supabase,userId,transactionId]);
+ useEffect(()=>{if(!transactionId||!supabase||!userId){setDetail(null);return;}let active=true;setLoading(true);setError('');void supabase.from('pg_demo_transactions').select('id,kind,amount_tzs,fee_tzs,delta_tzs,note,created_at').eq('user_id',userId).eq('id',transactionId).maybeSingle().then(({data,error:e})=>{if(!active)return;setLoading(false);if(e)setError(e.message);else setDetail(data as DemoRow|null);});return()=>{active=false};},[supabase,userId,transactionId]);
+ const title=(kind:string)=>({topup:'Wallet Top Up',fee_payment:'Tuition Fee Payment',loan_repayment:'Loan Repayment',loan_disbursement:'Loan Disbursement',bank_transfer:'Bank Transfer',merchant_payment:'Merchant Payment',tuition_payment:'Tuition Payment'} as Record<string,string>)[kind]||kind.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase());
+ if(supabase&&userId&&transactionId)return <section className="pg-feature-card pg-transaction-detail">
+  <Link className="pg-back" to="/history">← Back to Transaction History</Link>
+  <h1>Transaction Details</h1>
+  {loading?<p role="status">Loading transaction…</p>:error?<p className="pg-error" role="alert">{error}</p>:!detail?<p>Transaction not found or you do not have access to it.</p>:<>
+   <div className="pg-transaction-summary"><h2>{title(detail.kind)}</h2><strong style={{fontSize:30,color:Number(detail.delta_tzs)<0?'#151515':'#16815c'}}>{Number(detail.delta_tzs)>0?'+':'−'}{money(Math.abs(Number(detail.delta_tzs)))}</strong><p>Recorded</p></div>
+   <div className="pg-details">
+    <p><strong>Transaction ID</strong><span style={{overflowWrap:'anywhere'}}>{detail.id}</span></p>
+    <p><strong>Date & Time</strong><span>{new Date(detail.created_at).toLocaleString('en-GB')}</span></p>
+    <p><strong>Transaction Type</strong><span>{title(detail.kind)}</span></p>
+    <p><strong>Direction</strong><span>{Number(detail.delta_tzs)<0?'Debit':'Credit'}</span></p>
+    <p><strong>Amount</strong><span>{money(Number(detail.amount_tzs))}</span></p>
+    <p><strong>Transaction Fee</strong><span>{money(Number(detail.fee_tzs||0))}</span></p>
+    <p><strong>Wallet Change</strong><span>{money(Number(detail.delta_tzs))}</span></p>
+    <p><strong>PlayGo Account</strong><span>{account}</span></p>
+    {detail.note?.replace(/SIMULATED ONLY\s*[·:—-]?\s*/gi,'').trim()&&<p><strong>Transaction Notes</strong><span style={{overflowWrap:'anywhere'}}>{detail.note.replace(/SIMULATED ONLY\s*[·:—-]?\s*/gi,'').trim()}</span></p>}
+   </div>
+   <p className="pg-note">This page displays recorded transaction data. External settlement status and historical balance are not independently verified here.</p>
+   <div className="pg-transaction-actions"><button type="button" className="pg-button" onClick={()=>window.print()}>Print / Save Receipt</button><Link className="pg-button pg-outline" to="/services?view=requests">Report an Issue</Link><Link className="pg-button pg-outline" to="/history">Done</Link></div>
+  </>}
+ </section>;
+ if(supabase&&userId)return <div className="pg-feature-card"><h2>Transaction History</h2>{error&&<p className="pg-error" role="alert">{error}</p>}{!rows.length&&!error&&<p>No transactions yet.</p>}{(short?rows.slice(0,4):rows).map(t=><Link className="pg-tx pg-transaction-link" to={'/history?transaction='+encodeURIComponent(t.id)} key={t.id}><div><b>{title(t.kind)}</b><small>{new Date(t.created_at).toLocaleString('en-GB')} · {t.note?.replace(/SIMULATED ONLY\s*[·:—-]?\s*/gi,'').trim()||'Wallet transaction'}</small></div><strong>{Number(t.delta_tzs)>0?'+':'−'}{money(Math.abs(Number(t.delta_tzs)))}</strong><span aria-hidden="true">›</span></Link>)}{short&&rows.length>4&&<Link to="/history">View all →</Link>}</div>;
+ const tx=walletInfo(account).transactions;return <div className="pg-feature-card"><strong>Recent Transactions</strong>{!tx.length?<p>No transactions yet.</p>:(short?tx.slice(0,4):tx).map(t=><div className="pg-tx" key={t.id}><div><b>{t.kind}</b></div><strong>{money(t.amount)}</strong></div>)}</div>;
+}
+
+type Intent={id:string;kind:'fee'|'transfer'|'topup'|'link-mobile'|'link-bank'|'merchant';amount:number;recipient?:string;source?:Source;merchantId?:string;reference?:string};
+const PENDING='playgo.demo.transaction.pending.v1';
+export function beginMerchantPayment(input:{merchantId:string;amount:number;reference:string},navigate:(path:string)=>void){begin({id:id(),kind:'merchant',amount:input.amount,merchantId:input.merchantId,reference:input.reference},navigate);}
+function begin(i:Intent,navigate:(path:string)=>void){sessionStorage.setItem('playgo.demo.transaction-otp',JSON.stringify({code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS}));sessionStorage.setItem(PENDING,JSON.stringify(i));navigate('/transaction-otp');}
+function Section({title,children}:{title:string;children:React.ReactNode}){const location=useLocation();const fromServices=location.state?.from==='/services';return <><Link className="pg-back" to={fromServices?"/services":"/dashboard"}>{fromServices?"← Back to Services":"← Back to Home"}</Link><h1>{title}</h1>{children}</>}
+export function FeePage({account}:{account:string}){
+ const navigate=useNavigate();const [amount,setAmount]=useState('');const [error,setError]=useState('');
+ const {balance,transactions}=walletInfo(account);
+ const payments=transactions.filter(t=>t.kind==='Tuition Fee Payment'||t.kind==='fee');
+ const total=payments.reduce((sum,t)=>sum+t.amount,0);
+ function submit(e:FormEvent){e.preventDefault();const n=amountOf(amount);if(!n||n>balance){setError('Enter a valid fee amount within your wallet balance.');return;}begin({id:id(),kind:'fee',amount:n},navigate);}
+ return <Section title="Pay Tuition Fee">
+  <div className="pg-feature-card"><h2>Fee Payment Progress</h2><div className="pg-fee-grid"><p>Paid via PlayGo<b>{money(total)}</b></p><p>Payments<b>{payments.length}</b></p></div><p>Only payments completed through PlayGo are shown here.</p></div>
+  <form className="pg-form" onSubmit={submit}><p>Wallet available: <b>{money(balance)}</b></p><label htmlFor="student-fee-amount">Amount to Pay (TZS)</label><input id="student-fee-amount" type="number" min="1" step="1" value={amount} onChange={e=>{setAmount(e.target.value);setError('');}} required/><button className="pg-button">Review & Verify OTP →</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form>
+  <History account={account}/>
+ </Section>;
+}
+export function TransferPage({account,findAccount}:{account:string;findAccount:(n:string)=>string|undefined}){const navigate=useNavigate();const [to,setTo]=useState('');const [amount,setAmount]=useState('');const [error,setError]=useState('');const recipient=findAccount(to);function submit(e:FormEvent){e.preventDefault();const n=amountOf(amount);if(!/^09\d{8}$/.test(to)||!recipient||to===account||!n||n>walletInfo(account).balance){setError('Check recipient account, amount, and available balance.');return;}begin({id:id(),kind:'transfer',amount:n,recipient:to},navigate);}return <Section title="Transfer"><p>Send wallet funds to another student account saved in this browser.</p><form className="pg-form" onSubmit={submit}><label>Recipient PlayGo Account</label><input inputMode="numeric" maxLength={10} placeholder="09XXXXXXXX" value={to} onChange={e=>setTo(e.target.value.replace(/\D/g,''))} required/>{recipient&&<p>Recipient: <b>{recipient}</b></p>}<label>Amount (TZS)</label><input type="number" min="1" step="1" value={amount} onChange={e=>setAmount(e.target.value)} required/><p>Available: {money(walletInfo(account).balance)}</p><button className="pg-button">Review & Verify OTP →</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form></Section>}
+export function BankTransferPage({account,supabase,userId}:{account:string;supabase:SupabaseClient;userId:string}){
+ const navigate=useNavigate();
+ const [bank,setBank]=useState<{account_holder:string;account_number:string}|null>(null);
+ const [loading,setLoading]=useState(true);const [amount,setAmount]=useState('');const [error,setError]=useState('');const [success,setSuccess]=useState('');const [review,setReview]=useState(false);const [otp,setOtp]=useState('');const [otpChallenge,setOtpChallenge]=useState<{code:string;expires:number}|null>(null);
+ useEffect(()=>{let active=true;void supabase.from('pg_nmb_demo_links').select('account_holder,account_number').eq('user_id',userId).maybeSingle().then(({data,error:e})=>{if(active){setLoading(false);if(e)setError('Unable to load linked NMB account.');else setBank(data);}});return()=>{active=false;};},[supabase,userId]);
+ const [quote,setQuote]=useState<{fee_tzs:number;total_debit_tzs:number}|null>(null);
+ const [quoteLoading,setQuoteLoading]=useState(false);
+ const [balance,setBalance]=useState<number|null>(null);
+ useEffect(()=>{let active=true;void supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle().then(({data,error:e})=>{if(!active)return;if(e)setError('Unable to load wallet balance: '+e.message);else setBalance(Number(data?.balance_tzs||0));});return()=>{active=false;};},[supabase,userId]);const n=Number(amount);const fee=Number(quote?.fee_tzs||0);const total=Number(quote?.total_debit_tzs||0);
+ useEffect(()=>{if(!Number.isSafeInteger(n)||n<1||n>5000000){setQuote(null);setQuoteLoading(false);return;}let active=true;setQuote(null);setQuoteLoading(true);void supabase.rpc('pg_financial_quote',{p_kind:'bank_transfer',p_amount:n}).then(({data,error:e})=>{if(!active)return;setQuote(!e&&Array.isArray(data)?data[0]:null);setQuoteLoading(false);});return()=>{active=false};},[supabase,n]);
+ async function confirm(){if(!otpChallenge||Date.now()>otpChallenge.expires||otp!==otpChallenge.code){setError('Invalid or expired OTP.');return;}if(!bank||!quote||!Number.isSafeInteger(n)||n<=0||n>5000000){setError('Invalid transfer amount.');return;}
+ const txId=id();const {data,error:e}=await supabase.rpc('pg_record_demo_transaction',{p_id:txId,p_kind:'bank_transfer',p_amount:n,p_note:'NMB bank transfer (not sent)'});
+ if(e){setError('Transfer was not saved: '+e.message);return;}
+ const receipt:Tx={id:txId,kind:'Bank Transfer',amount:n,from:account,to:'NMB '+mask(bank.account_number),at:new Date().toISOString(),note:'Saved in PlayGo. Fee: '+money(fee)+'. Balance: '+money(Number(data))};
+ sessionStorage.setItem('playgo.demo.receipt.v1',JSON.stringify(receipt));window.dispatchEvent(new Event('playgo:wallet-updated'));setSuccess('Transfer recorded in PlayGo. No funds were sent to the external bank.');setReview(false);setOtp('');setOtpChallenge(null);navigate('/transaction-status',{replace:true});
+ }
+ return <Section title="Transfer to Bank">{loading?<p>Loading linked bank…</p>:!bank?<p>No linked NMB account. <Link to="/profile">Link bank in Profile →</Link></p>:<div className="pg-feature-card"><p>Linked NMB: {bank.account_holder} · {mask(bank.account_number)}</p><p>Available balance: {money(balance??0)}</p><form className="pg-form" onSubmit={e=>{e.preventDefault();if(!Number.isSafeInteger(n)||n<=0||!quote||quoteLoading||total>(balance??0)){setError('Enter an amount including the calculated transaction fee within your wallet balance.');return;}setError('');setOtp('');setOtpChallenge({code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS});setReview(true);}}><label>Amount (TZS)</label><input type="number" min="1" step="1" max={balance??0} value={amount} onChange={e=>{setAmount(e.target.value);setReview(false);}} required/>{Number.isSafeInteger(n)&&n>0&&<div className="pg-details" aria-live="polite"><p><strong>Transfer amount</strong><span>{money(n)}</span></p>{quoteLoading?<p>Calculating charges…</p>:quote?<><p><strong>Transaction fee</strong><span>{money(fee)}</span></p><p><strong>Total deducted</strong><span>{money(total)}</span></p></>:<p>Unable to calculate charges.</p>}</div>}<button className="pg-button" disabled={!quote||quoteLoading}>Review Transfer</button></form>{review&&<div><p>Transfer: {money(n)} · Transaction fee: {money(fee)} · Total wallet debit: {money(total)}. Confirm to linked NMB account?</p><p className="pg-otp-hint">Verification code: <strong>{otpChallenge?.code}</strong> · Valid for 45 seconds. No SMS is sent.</p>{otpChallenge&&<DemoOtpTimer expires={otpChallenge.expires}/>}<label htmlFor="bank-transfer-otp">Enter 6-digit OTP</label><input id="bank-transfer-otp" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" value={otp} onChange={e=>setOtp(e.target.value.replace(/[^0-9]/g,'').slice(0,6))}/><button type="button" className="pg-button" onClick={confirm} disabled={otp.length!==6||!otpChallenge}>Verify OTP & Confirm Transfer</button></div>}</div>}{error&&<p role="alert">{error}</p>}{success&&<p role="status">{success}</p>}</Section>;
+}
+export function AddMoneyPage({account,supabase,userId}:{account:string;supabase:SupabaseClient;userId:string}){
+ const navigate=useNavigate();
+ const [method,setMethod]=useState<'bank'|'borrow'>('bank');
+ const [bank,setBank]=useState<{account_holder:string;account_number:string}|null>(null);
+ const [loadingBank,setLoadingBank]=useState(true);
+ useEffect(()=>{let live=true;void supabase.from('pg_nmb_demo_links').select('account_holder,account_number').eq('user_id',userId).maybeSingle().then(({data,error:e})=>{if(!live)return;setLoadingBank(false);if(e)setError('Cannot load linked bank.');else setBank(data);});return()=>{live=false;};},[supabase,userId]);
+ const [amount,setAmount]=useState('');
+ const [quote,setQuote]=useState<{fee_tzs:number;net_credit_tzs:number}|null>(null);
+ const [quoteLoading,setQuoteLoading]=useState(false);
+ const quoteAmount=amountOf(amount);
+ useEffect(()=>{if(!quoteAmount||quoteAmount>5000000){setQuote(null);setQuoteLoading(false);return;}let active=true;setQuote(null);setQuoteLoading(true);void supabase.rpc('pg_financial_quote',{p_kind:'topup',p_amount:quoteAmount}).then(({data,error:e})=>{if(!active)return;setQuote(!e&&Array.isArray(data)?data[0]:null);setQuoteLoading(false);});return()=>{active=false};},[supabase,quoteAmount]);
+ const [error,setError]=useState('');
+ const [message,setMessage]=useState('');
+ const [review,setReview]=useState<{amount:number;provider:string;number:string}|null>(null);
+ const [balance,setBalance]=useState<number|null>(null);
+ useEffect(()=>{let active=true;void supabase.from('pg_demo_wallets').select('balance_tzs').eq('user_id',userId).maybeSingle().then(({data,error:e})=>{if(!active)return;if(e)setError('Unable to load wallet balance: '+e.message);else setBalance(Number(data?.balance_tzs||0));});return()=>{active=false;};},[supabase,userId]);
+ const [otp,setOtp]=useState('');const [otpChallenge,setOtpChallenge]=useState<{code:string;expires:number}|null>(null);
+ function submit(e:FormEvent<HTMLFormElement>){
+  e.preventDefault();setError('');setMessage('');setReview(null);
+  const n=amountOf(amount);
+  if(!n||n>5000000||!quote||quoteLoading){setError('Enter a valid amount between TZS 1 and TZS 5,000,000.');return;}
+  if(!bank){setError('Link NMB account in Profile first.');return;}
+  setOtp('');setOtpChallenge({code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS});setReview({amount:n,provider:'NMB Bank',number:bank.account_number});
+ }
+ async function confirmDemoTopup(){if(!review)return;setError('');if(!otpChallenge||Date.now()>otpChallenge.expires||otp!==otpChallenge.code){setError('Invalid or expired OTP.');return;}
+ const {data,error:e}=await supabase.rpc('pg_record_demo_transaction',{p_id:id(),p_kind:'topup',p_amount:review.amount,p_note:'NMB source (not debited)'});
+ if(e){setError('Top-up was not saved: '+e.message);return;}
+ setBalance(Number(data));window.dispatchEvent(new Event('playgo:wallet-updated'));
+ setMessage('Top-up recorded in PlayGo. Net credited: '+money(Number(quote?.net_credit_tzs||0))+'. No real money transferred.');
+ setReview(null);setAmount('');setOtp('');setOtpChallenge(null);
+ navigate('/dashboard',{replace:true});
+ }
+ return <Section title="Add Money">
+ <p>Choose a funding method.</p><div className="pg-feature-card"><strong>Available balance: {money(balance||0)}</strong></div>
+ <div className="pg-services-grid"><button type="button" className="pg-service-tile" onClick={()=>{setMethod('bank');setReview(null);setOtpChallenge(null);}}><strong>Linked NMB Bank</strong></button><button type="button" className="pg-service-tile" onClick={()=>{setMethod('borrow');setReview(null);setOtpChallenge(null);}}><strong>Borrow</strong></button></div>
+ {method==='borrow'?<div className="pg-feature-card"><h2>Personal Boost Loan</h2><Link className="pg-button" to="/quick-loan">Continue to Personal Boost →</Link></div>:
+ <form className="pg-form pg-feature-card" onSubmit={submit}>
+ <h2>Top up from Linked NMB Bank</h2>{loadingBank?<p>Loading bank…</p>:!bank?<p>No linked bank. <Link to="/profile">Link NMB in Profile →</Link></p>:<p>{bank.account_holder} · {mask(bank.account_number)}</p>}
+ <label htmlFor="pg-topup-amount">Amount (TZS)</label><input id="pg-topup-amount" type="number" min="1" max="5000000" step="1" placeholder="Enter amount" value={amount} onChange={e=>setAmount(e.target.value)} required/>
+ {amountOf(amount)>0&&<div className="pg-details" aria-live="polite"><p><strong>Top-up amount</strong><span>{money(amountOf(amount))}</span></p>{quoteLoading?<p>Calculating charges…</p>:quote?<p><strong>Transaction fee</strong><span>{money(Number(quote.fee_tzs))}</span></p>:<p>Unable to calculate charges.</p>}<p><strong>Net wallet credit</strong><span>{money(Number(quote?.net_credit_tzs||0))}</span></p></div>}<button className="pg-button" type="submit" disabled={!bank||loadingBank||!quote||quoteLoading}>Review Top-Up →</button>
+ {review&&<div className="pg-feature-card" role="status"><h3>Confirm top-up</h3><p><strong>Amount:</strong> {money(review.amount)}</p><p><strong>Transaction fee:</strong> {money(Number(quote?.fee_tzs||0))}</p><p><strong>Net wallet credit:</strong> {money(Number(quote?.net_credit_tzs||0))}</p><p><strong>Source:</strong> {review.provider} · {mask(review.number)}</p><p>No charge will be made to this source. Your PlayGo wallet balance will increase.</p><p className="pg-otp-hint">Verification code: <strong>{otpChallenge?.code}</strong> · Valid for 45 seconds. No SMS is sent.</p>{otpChallenge&&<DemoOtpTimer expires={otpChallenge.expires}/>}<label htmlFor="bank-topup-otp">Enter 6-digit OTP</label><input id="bank-topup-otp" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" value={otp} onChange={e=>setOtp(e.target.value.replace(/[^0-9]/g,'').slice(0,6))}/><button className="pg-button" type="button" onClick={confirmDemoTopup} disabled={otp.length!==6||!otpChallenge}>Verify OTP & Add Money</button><button className="pg-button pg-outline" type="button" onClick={()=>{setReview(null);setOtpChallenge(null);}}>Cancel</button></div>}{error&&<p className="pg-error" role="alert">{error}</p>}{message&&<p className="pg-services-message" role="status">{message}</p>}
+ 
+ </form>}
+ </Section>;
+}
+export function LinkedAccounts({account, supabase, userId}:{account:string;supabase?:SupabaseClient;userId?:string}){
+ const [step,setStep]=useState<'form'|'otp'|'checking'|'card'>('form');
+ const [holder,setHolder]=useState('');
+ const [bankNumber,setBankNumber]=useState('');
+ const [mobile,setMobile]=useState('');
+ const [otp,setOtp]=useState('');
+ const [demoOtp,setDemoOtp]=useState('');const [bankOtpExpires,setBankOtpExpires]=useState(0);
+ const [revealed,setRevealed]=useState(false);
+ const [error,setError]=useState('');
+ const [progress,setProgress]=useState(0);
+ const [loadingSaved,setLoadingSaved]=useState(!!supabase && !!userId);
+ const [saving,setSaving]=useState(false);
+ useEffect(()=>{if(!supabase||!userId)return;let active=true;void supabase.from('pg_nmb_demo_links').select('account_holder,account_number,mobile_number').eq('user_id',userId).maybeSingle().then(({data,error:loadError})=>{if(!active)return;setLoadingSaved(false);if(loadError){setError('Could not load saved NMB details: '+loadError.message);return;}if(data){setHolder(data.account_holder);setBankNumber(data.account_number);setMobile(data.mobile_number);setStep('card');}});return()=>{active=false;};},[supabase,userId]);
+ const masked=(value:string)=>'•••• •••• '+value.slice(-4);
+ function requestOtp(e:FormEvent<HTMLFormElement>){
+   e.preventDefault();setError('');
+   const digits=bankNumber.replace(/\D/g,'');
+   const phone=mobile.replace(/[\s-]/g,'');
+   if(holder.trim().length<2||holder.trim().length>120){setError('Enter the account holder name.');return;}
+   if(!/^[0-9]{6,24}$/.test(digits)){setError('Enter a valid bank account number format.');return;}
+   if(!/^(?:0[67]\d{8}|\+?255[67]\d{8})$/.test(phone)){setError('Enter a valid Tanzanian mobile number.');return;}
+   setBankNumber(digits);setMobile(phone);setDemoOtp(generateDemoOtp());setBankOtpExpires(Date.now()+DEMO_OTP_LIFETIME_MS);setOtp('');setStep('otp');
+ }
+ async function confirmOtp(e:FormEvent<HTMLFormElement>){
+   e.preventDefault();setError('');
+   if(Date.now()>=bankOtpExpires||otp!==demoOtp){setError('Verification code expired or incorrect. Return to details to request a new one.');return;}
+   if(!supabase||!userId){setError('Sign in to save the NMB details.');return;}
+   setSaving(true);setProgress(35);setStep('checking');
+   const {error:saveError}=await supabase.from('pg_nmb_demo_links').upsert({user_id:userId,account_holder:holder.trim(),account_number:bankNumber,mobile_number:mobile,status:'demo_pending_real_verification',updated_at:new Date().toISOString()},{onConflict:'user_id'});
+   setSaving(false);
+   if(saveError){setError('Database save failed: '+saveError.message);setStep('otp');return;}
+   setProgress(100);setStep('card');setOtp('');setDemoOtp('');
+ }
+ async function reset(){if(supabase&&userId){setSaving(true);const {error:deleteError}=await supabase.from('pg_nmb_demo_links').delete().eq('user_id',userId);setSaving(false);if(deleteError){setError('Could not remove saved details: '+deleteError.message);return;}}setStep('form');setHolder('');setBankNumber('');setMobile('');setOtp('');setDemoOtp('');setError('');setProgress(0);setRevealed(false);}
+ return <div className="pg-feature-card" style={{minWidth:0}}>
+   <h2>NMB Bank Account</h2>
+   <p className="pg-note">Do not enter sensitive bank credentials or PINs.</p>
+   {loadingSaved&&<p>Loading saved NMB account…</p>}
+   {!loadingSaved&&step==='form'&&<form className="pg-form" onSubmit={requestOtp}>
+     <label htmlFor="nmb-holder">Account holder name</label><input id="nmb-holder" required maxLength={120} autoComplete="off" value={holder} onChange={e=>setHolder(e.target.value)} placeholder="Test account holder"/>
+     <label htmlFor="nmb-account">NMB account number (test data only)</label><input id="nmb-account" required inputMode="numeric" autoComplete="off" value={bankNumber} onChange={e=>setBankNumber(e.target.value)} placeholder="Enter fictional account number"/>
+     <label htmlFor="nmb-phone">Mobile number (test data only)</label><input id="nmb-phone" required type="tel" autoComplete="off" value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="07XXXXXXXX"/>
+     <button className="pg-button" type="submit">Continue to OTP →</button>
+     {error&&<p className="pg-error" role="alert">{error}</p>}
+   </form>}
+   {!loadingSaved&&step==='otp'&&<><h3>Confirm bank linking</h3><p>Step 2 of 3 · OTP Verification</p><div className="pg-details"><p><strong>Verification code</strong><span style={{fontVariantNumeric:'tabular-nums'}}>{demoOtp}</span></p><p><strong>Mobile</strong><span>{masked(mobile)}</span></p></div><DemoOtpTimer expires={bankOtpExpires}/><form className="pg-form" onSubmit={confirmOtp}><label htmlFor="nmb-otp">Six-digit demonstration code</label><input id="nmb-otp" required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}/><button className="pg-button" type="submit">Confirm Verification code →</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form><button className="pg-button pg-outline" type="button" onClick={()=>setStep('form')}>Back to details</button></>}
+   {!loadingSaved&&step==='checking'&&<div aria-live="polite"><h3>Checking account details…</h3><div role="progressbar" aria-label="Account linking progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{height:10,borderRadius:8,background:'#eee',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#c93333',transition:'width .4s'}}/></div><p>{progress}% · {progress<70?'Checking verification code…':progress<100?'Preparing preview card…':'Preview ready'}</p></div>}
+   {!loadingSaved&&step==='card'&&<><div style={{borderRadius:18,background:'#183d32',color:'#fff',padding:20,margin:'16px 0',minWidth:0,overflow:'hidden'}}>
+     <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><strong style={{fontSize:19}}>NMB</strong><span className="pg-bank-connected"><span aria-hidden="true">●</span> CONNECTED</span></div>
+     <p style={{fontSize:11,opacity:.8,marginTop:18}}>NMB Account Number</p>
+     <strong style={{fontSize:'clamp(16px,4.2vw,22px)',letterSpacing:1,overflowWrap:'anywhere',fontVariantNumeric:'tabular-nums'}}>{revealed?bankNumber:masked(bankNumber)}</strong>
+     <p style={{fontSize:13,margin:'20px 0 3px'}}>{holder}</p><p style={{fontSize:11,opacity:.8,margin:0}}>PlayGo · {account}</p>
+   </div>
+   <div className="pg-bank-card-actions"><button className="pg-bank-action pg-bank-action-primary" type="button" onClick={()=>setRevealed(v=>!v)}>{revealed?'Hide account number':'Show account number'}</button>
+   
+   <button className="pg-bank-action pg-bank-action-danger" type="button" onClick={()=>void reset()} disabled={saving}>Remove account</button></div></>}
+ </div>;
+}
+export function TransactionOtp({account,findAccount}:{account:string;findAccount:(n:string)=>string|undefined}){const navigate=useNavigate();const [code,setCode]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [challenge,setChallenge]=useState<{code:string;expires:number}|null>(()=>{try{return JSON.parse(sessionStorage.getItem('playgo.demo.transaction-otp')||'null');}catch{return null;}});const raw=sessionStorage.getItem(PENDING);let intent:Intent|null=null;try{intent=raw?JSON.parse(raw) as Intent:null;}catch{}if(!intent)return <Navigate to="/dashboard" replace/>;const current=intent;const labels:{[key:string]:string}={fee:'Tuition Fee Payment',transfer:'Student Transfer',topup:'Add Money','link-mobile':'Link Mobile Money','link-bank':'Link Bank Account',merchant:'Merchant Payment'};function submit(e:FormEvent){e.preventDefault();if(busy)return;if(!challenge||Date.now()>=challenge.expires||code!==challenge.code){setError('OTP incorrect or expired. Restart the transaction for a new code.');return;}setBusy(true);try{const s=load();if(s.processed.includes(current.id))throw Error('Already processed.');const balance=s.balances[account]||0;const n=current.amount;let to='';let note='';if(current.kind==='fee'){if(!amountOf(String(n))||n>balance)throw Error('Insufficient balance or invalid fee amount.');s.balances[account]=balance-n;to='Institution fee';note='Demo tuition payment';}else if(current.kind==='transfer'){to=current.recipient||'';if(!findAccount(to)||to===account||!amountOf(String(n))||n>balance)throw Error('Recipient or balance invalid.');s.balances[account]=balance-n;s.balances[to]=(s.balances[to]||0)+n;note='Demo student transfer';}else if(current.kind==='merchant'){const merchantIds=['PGM1001','PGM1002','PGM1003','PGM1004','PGM1005'];if(!current.merchantId||!merchantIds.includes(current.merchantId)||!amountOf(String(n))||n>balance)throw Error('Invalid merchant payment or insufficient wallet balance.');s.balances[account]=balance-n;to=current.merchantId;note=`Demo merchant payment${current.reference?' · '+current.reference:''}`;}else if(current.kind==='topup'){if(!current.source||(s.sources[account]||[]).every(x=>x.id!==current.source!.id)||!amountOf(String(n)))throw Error('Funding source unavailable.');s.balances[account]=balance+n;to=account;note=`Demo funding via ${current.source.provider}`;}else{if(!current.source)throw Error('Account details missing.');const existing=s.sources[account]||[];if(existing.some(x=>x.number===current.source!.number&&x.kind===current.source!.kind))throw Error('Account already linked.');s.sources[account]=[...existing,current.source];note=`Demo linked ${current.source.provider}`;}s.processed.push(current.id);const tx:Tx={id:current.id,kind:labels[current.kind],amount:n,from:account,to,at:new Date().toISOString(),note};s.transactions.push(tx);save(s);sessionStorage.removeItem(PENDING);sessionStorage.removeItem('playgo.demo.transaction-otp');sessionStorage.setItem('playgo.demo.receipt.v1',JSON.stringify(tx));navigate('/transaction-status',{replace:true});}catch(e){setBusy(false);setError(e instanceof Error?e.message:'Unable to complete demo operation.');}}return <Section title="OTP Verification"><p>Confirm: <b>{labels[current.kind]}</b></p>{current.amount>0&&<p>Amount: <b>{money(current.amount)}</b></p>}{current.recipient&&<p>Recipient: {current.recipient}</p>}{current.merchantId&&<p>Merchant ID: {current.merchantId}</p>}{current.source&&<p>Source: {current.source.provider} · {mask(current.source.number)}</p>}<div className="pg-otp-hint">Verification code: <strong>{challenge?.code||"Unavailable"}</strong> · No SMS is sent.</div>{challenge&&<DemoOtpTimer expires={challenge.expires}/>}<form className="pg-form" onSubmit={submit}><label>Six-digit OTP</label><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))}/><button className="pg-button" disabled={busy}>{busy?'Processing…':'Verify & Confirm →'}</button><button className="pg-button pg-outline" type="button" onClick={()=>{sessionStorage.removeItem(PENDING);navigate('/dashboard',{replace:true});}}>Cancel</button><button type="button" className="pg-text-button" onClick={()=>{const next={code:generateDemoOtp(),expires:Date.now()+DEMO_OTP_LIFETIME_MS};sessionStorage.setItem('playgo.demo.transaction-otp',JSON.stringify(next));setChallenge(next);setCode('');setError('New demo OTP generated.');}}>Resend demo OTP</button>{error&&<p className="pg-error" role="alert">{error}</p>}</form></Section>}
+function receiptMarkup(tx:Tx){
+ const esc=(v:string)=>v.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+ const fields=[['Transaction type',tx.kind],['Amount',money(tx.amount)],['Reference',tx.id],['Date',new Date(tx.at).toLocaleString('en-GB')],['From wallet',tx.from],['Merchant / Recipient',tx.to||'-'],['Details',tx.note||'-']];
+ const rows=fields.map(([key,val])=>'<div class="row"><span>'+esc(key)+'</span><strong>'+esc(val)+'</strong></div>').join('');
+ return '<!doctype html><html><head><meta charset="utf-8"><title>PlayGo Receipt '+esc(tx.id)+'</title><style>@page{size:A4;margin:20mm}body{font-family:Arial,sans-serif;color:#18202d;max-width:650px;margin:25px auto}.brand{font-size:36px;font-weight:900;border-bottom:5px solid #e6192e;padding-bottom:18px}.brand b{color:#e6192e}.subtitle{font-size:11px;letter-spacing:2px}.heading{font-size:25px;font-weight:800;margin:32px 0 10px}.status{color:#157c4b;margin-bottom:25px;font-weight:700}.row{display:flex;justify-content:space-between;gap:22px;padding:15px;border:1px solid #dbe1e8;border-bottom:0}.row:last-of-type{border-bottom:1px solid #dbe1e8}.row span{color:#647182}.row strong{text-align:right;overflow-wrap:anywhere}.footer{border-top:1px solid #dbe1e8;margin-top:28px;padding-top:12px;color:#647182;font-size:12px}@media print{body{margin:0}}</style></head><body><div class="brand">Play<b>Go</b><div class="subtitle">TANZANIA LIMITED</div></div><h1 class="heading">Transaction Receipt</h1><div class="status">✓ Transaction completed</div>'+rows+'<div class="footer">PlayGo Tanzania Limited · Receipt reference: '+esc(tx.id)+'</div></body></html>';
+}
+function printTransactionReceipt(tx:Tx){
+ const frame=document.createElement('iframe');frame.style.cssText='position:fixed;width:0;height:0;border:0';document.body.appendChild(frame);
+ const doc=frame.contentDocument;if(!doc){frame.remove();return;}doc.open();doc.write(receiptMarkup(tx));doc.close();
+ window.setTimeout(()=>{frame.contentWindow?.focus();frame.contentWindow?.print();window.setTimeout(()=>frame.remove(),60000);},350);
+}
+export function TransactionStatus({account}:{account:string}){
+ const raw=sessionStorage.getItem('playgo.demo.receipt.v1');let tx:Tx|null=null;try{tx=raw?JSON.parse(raw) as Tx:null;}catch{}
+ const [message,setMessage]=useState('');
+ if(!tx||tx.from!==account)return <Navigate to="/dashboard" replace/>;
+ const receipt=tx;
+ async function share(){const summary=['PlayGo Transaction Receipt','Transaction: '+receipt.kind,'Amount: '+money(receipt.amount),'Reference: '+receipt.id,'Date: '+new Date(receipt.at).toLocaleString('en-GB'),'From: '+receipt.from,'To: '+receipt.to,'Details: '+receipt.note].join('\n');
+ try{if(navigator.share){await navigator.share({title:'PlayGo Transaction Receipt',text:summary});return;}await navigator.clipboard.writeText(summary);setMessage('Receipt copied. You can paste and share it.');}catch(e){if(!(e instanceof Error&&e.name==='AbortError'))setMessage('Unable to share receipt.');}}
+ return <Section title="Transaction Successful"><div className="pg-success"><h2>✓ Transaction completed</h2><p><b>{receipt.kind}</b></p><p>Amount: {money(receipt.amount)}</p><p>Reference: {receipt.id}</p><p>Date: {new Date(receipt.at).toLocaleString()}</p><p>From: {receipt.from}</p>{receipt.to&&<p>To: {receipt.to}</p>}</div><div className="pg-receipt-actions"><button className="pg-button" type="button" onClick={()=>printTransactionReceipt(receipt)}>Download / Print PDF Receipt ↓</button><button className="pg-button pg-outline" type="button" onClick={()=>void share()}>Share Receipt ↗</button></div>{message&&<p role="status">{message}</p>}</Section>;
+}
